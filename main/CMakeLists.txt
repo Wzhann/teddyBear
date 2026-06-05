@@ -1,0 +1,24 @@
+idf_component_register(
+    SRCS
+        "app_main.cpp"
+        "audio/audio_codec.c"
+        "comm/protocol_handler.c"
+        "comm/uart_handler.c"
+        "sr/multinet_handler.c"
+        "sr/sr_handler.cpp"
+    PRIV_REQUIRES
+        spi_flash
+    REQUIRES
+        nvs_flash
+        esp-sr
+        esp_driver_i2c
+        esp_driver_i2s
+        esp_driver_uart
+        esp_driver_gpio
+        esp_psram
+    INCLUDE_DIRS
+        "."
+        "audio"
+        "comm"
+        "sr"
+)
