@@ -1,26 +1,26 @@
 #include <math.h>
 
-// ¶¨Òå»úĞµ±ÛµÄ³¤¶È
-#define L1 10.0  // µÚÒ»¶Î³¤¶È
-#define L2 10.0  // µÚ¶ş¶Î³¤¶È
-#define L3 10.0  // µÚÈı¶Î³¤¶È
+// å®šä¹‰æœºæ¢°è‡‚çš„é•¿åº¦
+#define L1 10.0  // ç¬¬ä¸€æ®µé•¿åº¦
+#define L2 10.0  // ç¬¬äºŒæ®µé•¿åº¦
+#define L3 10.0  // ç¬¬ä¸‰æ®µé•¿åº¦
 
-// ¶¨ÒåPI³£Á¿
+// å®šä¹‰PIå¸¸é‡
 #define PI 3.14159265358979323846
 
-// ÄæÔË¶¯Ñ§½âËãº¯Êı
+// é€†è¿åŠ¨å­¦è§£ç®—å‡½æ•°
 void inverse_kinematics(double x, double y, double z, double *theta1, double *theta2, double *theta3) 
 {
 	double alpha,beta,gamma,beta1,beta2;
-    // ¼ÆËã
-	alpha = atan2(y,x);//¼ÆËãµ××ù½Ç£¨»¡¶ÈÖÆ£©
+    // è®¡ç®—
+	alpha = atan2(y,x);//è®¡ç®—åº•åº§è§’ï¼ˆå¼§åº¦åˆ¶ï¼‰
     *theta1 = atan2(y, x);
 
-    // ¼ÆËãÄ©¶ËÔÚx-yÆ½ÃæÉÏµÄÍ¶Ó°¾àÀë
+    // è®¡ç®—æœ«ç«¯åœ¨x-yå¹³é¢ä¸Šçš„æŠ•å½±è·ç¦»
     double Lp = sqrt(x * x + y * y);
-	// ¼ÆËãÄ©¶ËÔÚzÖáÉÏµÄ¸ß¶È
+	// è®¡ç®—æœ«ç«¯åœ¨zè½´ä¸Šçš„é«˜åº¦
     double Lh = z - L1;
-	// ¸¨ÖúÏßĞ±±ß¾àÀë
+	// è¾…åŠ©çº¿æ–œè¾¹è·ç¦»
     double Ld = sqrt(Lp * Lp + Lh * Lh);
 	if(Lh < 0)
 	{
@@ -39,16 +39,16 @@ void inverse_kinematics(double x, double y, double z, double *theta1, double *th
 		beta2 = atan2(fabs(Lh),Lp);
 		beta = PI/2 - (beta1 + beta2);
 	}
-    // Ê¹ÓÃÓàÏÒ¶¨Àí¼ÆËãtheta3
+    // ä½¿ç”¨ä½™å¼¦å®šç†è®¡ç®—theta3
     double cos_gamma = (L2 * L2 + L3 * L3 - Ld * Ld) / (2 * L2 * L3);
     gamma = PI - acos(cos_gamma);
 
-    // ½«½Ç¶È×ª»»Îª¶È
+    // å°†è§’åº¦è½¬æ¢ä¸ºåº¦
     *theta1 = alpha * 180 / PI;
     *theta2 = beta * 180 / PI;
     *theta3 = gamma * 180 / PI;
 }
-//ÕıÔË¶¯Ñ§½âËãº¯Êı
+//æ­£è¿åŠ¨å­¦è§£ç®—å‡½æ•°
 void forward_kinematics(double* x, double* y, double* z, double theta1, double theta2, double theta3) 
 {
 	double alpha = theta3 - (PI/2 - theta2);

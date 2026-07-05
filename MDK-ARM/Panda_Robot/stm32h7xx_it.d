@@ -55,9 +55,10 @@ panda_robot/stm32h7xx_it.o: ..\Core\Src\stm32h7xx_it.c ..\Core\Inc\main.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\semphr.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\event_groups.h \
-  ..\Users\user_tasks.h ..\Users\user_led.h ..\Users\user_adc.h \
-  ..\Users\user_timer.h ..\Users\user_imu.h ..\Users\user_comm.h \
-  ..\Users\user_gait.h ..\Users\user_communication.h \
+  ..\Users\user_tasks.h D:\Dkong\ARM\ARMCLANG\Bin\..\include\time.h \
+  ..\Users\user_led.h ..\Users\user_adc.h ..\Users\user_timer.h \
+  ..\Users\user_imu.h ..\Users\user_comm.h ..\Users\user_gait.h \
+  ..\Users\user_communication.h \
   D:\Dkong\ARM\ARMCLANG\Bin\..\include\stdbool.h \
   D:\Dkong\ARM\ARMCLANG\Bin\..\include\stdio.h \
   D:\Dkong\ARM\ARMCLANG\Bin\..\include\string.h

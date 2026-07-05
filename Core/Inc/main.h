@@ -59,6 +59,12 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define UART_LEG2_Pin GPIO_PIN_2
 #define UART_LEG2_GPIO_Port GPIOA
+#define ADC_BAT_Pin GPIO_PIN_4
+#define ADC_BAT_GPIO_Port GPIOC
+#define ADC_CHARGE_Pin GPIO_PIN_1
+#define ADC_CHARGE_GPIO_Port GPIOB
+#define Backside_Pin GPIO_PIN_2
+#define Backside_GPIO_Port GPIOB
 #define UART_LEG3_Pin GPIO_PIN_10
 #define UART_LEG3_GPIO_Port GPIOB
 #define UART_HEAD_Pin GPIO_PIN_13
@@ -69,11 +75,31 @@ void Error_Handler(void);
 #define Power_out_GPIO_Port GPIOD
 #define Power_in_Pin GPIO_PIN_9
 #define Power_in_GPIO_Port GPIOD
-#define Servo_Power_Pin GPIO_PIN_4
-#define Servo_Power_GPIO_Port GPIOD
+#define LED_Pin GPIO_PIN_11
+#define LED_GPIO_Port GPIOD
+#define TOUCH1_MOUTH_Pin GPIO_PIN_11
+#define TOUCH1_MOUTH_GPIO_Port GPIOC
+#define upperComputerPower_5V_Pin GPIO_PIN_0
+#define upperComputerPower_5V_GPIO_Port GPIOD
+#define TOUCH0_HEAD_Pin GPIO_PIN_2
+#define TOUCH0_HEAD_GPIO_Port GPIOD
+#define Servo_Power_12V_Pin GPIO_PIN_4
+#define Servo_Power_12V_GPIO_Port GPIOD
+#define Abdomen_Pin GPIO_PIN_5
+#define Abdomen_GPIO_Port GPIOD
+#define BUZZER_Pin GPIO_PIN_6
+#define BUZZER_GPIO_Port GPIOD
+#define FAN_Pin GPIO_PIN_7
+#define FAN_GPIO_Port GPIOD
+#define MPU_SCL_Pin GPIO_PIN_6
+#define MPU_SCL_GPIO_Port GPIOB
+#define MPU_SDA_Pin GPIO_PIN_7
+#define MPU_SDA_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
+#define upperComputerPower_PIN GPIO_PIN_0
+#define upperComputerPower_GPIO_Port GPIOD
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

@@ -54,7 +54,8 @@ panda_robot/user_servo.o: ..\Users\user_servo.c ..\Users\user_servo.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\semphr.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\event_groups.h \
-  ..\Core\Inc\main.h ..\Users\user_tasks.h ..\Users\user_led.h \
+  ..\Core\Inc\main.h ..\Users\user_tasks.h \
+  D:\Dkong\ARM\ARMCLANG\Bin\..\include\time.h ..\Users\user_led.h \
   ..\Users\user_adc.h ..\Users\user_timer.h ..\Users\user_imu.h \
   ..\Users\user_comm.h ..\Users\user_gait.h \
   D:\Dkong\ARM\ARMCLANG\Bin\..\include\stdio.h \

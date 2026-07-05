@@ -48,7 +48,7 @@ void User_Imu1DataParas(void)
 				IMU1.accx = ((int16_t)IMU1.usart_rx_buf[i+3]<<8 | IMU1.usart_rx_buf[i+2])/32768.0*16;//g
 				IMU1.accy = ((int16_t)IMU1.usart_rx_buf[i+5]<<8 | IMU1.usart_rx_buf[i+4])/32768.0*16;//g
 				IMU1.accz = ((int16_t)IMU1.usart_rx_buf[i+7]<<8 | IMU1.usart_rx_buf[i+6])/32768.0*16;//g
-				IMU1.temper = ((int16_t)IMU1.usart_rx_buf[i+9]<<8 | IMU1.usart_rx_buf[i+8])/340.0+36.53;//▲C	
+				IMU1.temper = ((int16_t)IMU1.usart_rx_buf[i+9]<<8 | IMU1.usart_rx_buf[i+8])/340.0+36.53;//째C	
 				
 				i = j;
 			}
@@ -64,9 +64,9 @@ void User_Imu1DataParas(void)
 			}
 			if(sum == IMU1.usart_rx_buf[j])
 			{
-				IMU1.gyrox = ((int16_t)IMU1.usart_rx_buf[i+3]<<8 | IMU1.usart_rx_buf[i+2])/32768.0*2000;//▲/s
-				IMU1.gyroy = ((int16_t)IMU1.usart_rx_buf[i+5]<<8 | IMU1.usart_rx_buf[i+4])/32768.0*2000;//▲/s
-				IMU1.gyroz = ((int16_t)IMU1.usart_rx_buf[i+7]<<8 | IMU1.usart_rx_buf[i+6])/32768.0*2000;//▲/s
+				IMU1.gyrox = ((int16_t)IMU1.usart_rx_buf[i+3]<<8 | IMU1.usart_rx_buf[i+2])/32768.0*2000;//째/s
+				IMU1.gyroy = ((int16_t)IMU1.usart_rx_buf[i+5]<<8 | IMU1.usart_rx_buf[i+4])/32768.0*2000;//째/s
+				IMU1.gyroz = ((int16_t)IMU1.usart_rx_buf[i+7]<<8 | IMU1.usart_rx_buf[i+6])/32768.0*2000;//째/s
 				
 				i = j;
 			}
@@ -82,11 +82,11 @@ void User_Imu1DataParas(void)
 			}
 			if(sum == IMU1.usart_rx_buf[j])
 			{
-				temp_ang = ((int16_t)IMU1.usart_rx_buf[i+3]<<8 | IMU1.usart_rx_buf[i+2])/32768.0*180;//▲
+				temp_ang = ((int16_t)IMU1.usart_rx_buf[i+3]<<8 | IMU1.usart_rx_buf[i+2])/32768.0*180;//째
 				IMU1.angx = (temp_ang>180)?(temp_ang-360):temp_ang;
-				temp_ang = ((int16_t)IMU1.usart_rx_buf[i+5]<<8 | IMU1.usart_rx_buf[i+4])/32768.0*180;//▲
+				temp_ang = ((int16_t)IMU1.usart_rx_buf[i+5]<<8 | IMU1.usart_rx_buf[i+4])/32768.0*180;//째
 				IMU1.angy = (temp_ang>180)?(temp_ang-360):temp_ang;
-				temp_ang = ((int16_t)IMU1.usart_rx_buf[i+7]<<8 | IMU1.usart_rx_buf[i+6])/32768.0*180;//▲
+				temp_ang = ((int16_t)IMU1.usart_rx_buf[i+7]<<8 | IMU1.usart_rx_buf[i+6])/32768.0*180;//째
 				IMU1.angz = (temp_ang>180)?(temp_ang-360):temp_ang;
 				
 				i = j;

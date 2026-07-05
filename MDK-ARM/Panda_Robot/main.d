@@ -53,9 +53,15 @@ panda_robot/main.o: ..\Core\Src\main.c ..\Core\Inc\main.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\semphr.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\event_groups.h \
-  ..\Core\Inc\adc.h ..\Core\Inc\dma.h ..\Core\Inc\memorymap.h \
-  ..\Core\Inc\tim.h ..\Core\Inc\usart.h ..\Core\Inc\gpio.h \
-  ..\Users\user_servo.h ..\Users\Action_Library.h \
-  ..\Users\user_includes.h ..\Users\user_tasks.h ..\Users\user_led.h \
-  ..\Users\user_adc.h ..\Users\user_timer.h ..\Users\user_imu.h \
-  ..\Users\user_comm.h ..\Users\user_gait.h
+  ..\Core\Inc\adc.h ..\Core\Inc\dma.h ..\Core\Inc\tim.h \
+  ..\Core\Inc\usart.h ..\Core\Inc\gpio.h ..\Users\user_servo.h \
+  ..\Users\Action_Library.h ..\Users\user_includes.h \
+  ..\Users\user_tasks.h D:\Dkong\ARM\ARMCLANG\Bin\..\include\time.h \
+  ..\Users\user_led.h ..\Users\user_adc.h ..\Users\user_timer.h \
+  ..\Users\user_imu.h ..\Users\user_comm.h ..\Users\user_gait.h \
+  ..\Users\user_imu_i2c.h ..\Users\user_communication.h \
+  D:\Dkong\ARM\ARMCLANG\Bin\..\include\stdbool.h \
+  D:\Dkong\ARM\ARMCLANG\Bin\..\include\stdio.h \
+  D:\Dkong\ARM\ARMCLANG\Bin\..\include\string.h \
+  D:\Dkong\ARM\ARMCLANG\Bin\..\include\stdlib.h ..\Users\user_IAP.h \
+  ..\Users\user_flash.h

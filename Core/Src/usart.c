@@ -55,7 +55,7 @@ void MX_UART4_Init(void)
 
   /* USER CODE END UART4_Init 1 */
   huart4.Instance = UART4;
-  huart4.Init.BaudRate = 500000;
+  huart4.Init.BaudRate = 115200;
   huart4.Init.WordLength = UART_WORDLENGTH_8B;
   huart4.Init.StopBits = UART_STOPBITS_1;
   huart4.Init.Parity = UART_PARITY_NONE;
@@ -333,17 +333,10 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     PA0     ------> UART4_TX
     PA1     ------> UART4_RX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_0;
+    GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    GPIO_InitStruct.Alternate = GPIO_AF8_UART4;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-    GPIO_InitStruct.Pin = GPIO_PIN_1;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF8_UART4;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
@@ -414,9 +407,9 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     PB13     ------> UART5_TX
     */
     GPIO_InitStruct.Pin = UART_HEAD_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF14_UART5;
     HAL_GPIO_Init(UART_HEAD_GPIO_Port, &GPIO_InitStruct);
 
@@ -429,7 +422,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     hdma_uart5_rx.Init.MemInc = DMA_MINC_ENABLE;
     hdma_uart5_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
     hdma_uart5_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    hdma_uart5_rx.Init.Mode = DMA_CIRCULAR;
+    hdma_uart5_rx.Init.Mode = DMA_NORMAL;
     hdma_uart5_rx.Init.Priority = DMA_PRIORITY_LOW;
     hdma_uart5_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&hdma_uart5_rx) != HAL_OK)
@@ -503,7 +496,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     hdma_uart7_rx.Init.MemInc = DMA_MINC_ENABLE;
     hdma_uart7_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
     hdma_uart7_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    hdma_uart7_rx.Init.Mode = DMA_NORMAL;
+    hdma_uart7_rx.Init.Mode = DMA_CIRCULAR;
     hdma_uart7_rx.Init.Priority = DMA_PRIORITY_LOW;
     hdma_uart7_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&hdma_uart7_rx) != HAL_OK)
@@ -561,7 +554,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     PB14     ------> USART1_TX
     */
     GPIO_InitStruct.Pin = UART_LEG1_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF4_USART1;
@@ -634,7 +627,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     PA2     ------> USART2_TX
     */
     GPIO_InitStruct.Pin = UART_LEG2_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
@@ -707,7 +700,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     PB10     ------> USART3_TX
     */
     GPIO_InitStruct.Pin = UART_LEG3_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF7_USART3;

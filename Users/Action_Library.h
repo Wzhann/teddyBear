@@ -2,15 +2,22 @@
 #define __ACTION_LIBRARY_H__
 #include "stdint.h"
 
-#define ACTION_COUNT_MAX 50
-// Ê¾½Ì×Ü²½½øÊýÉèÖÃ£¨Ä¬ÈÏ¶¨Ê±Æ÷Îª5´Î/Ãë£¬ÀýÈç35´Î¶ÔÓ¦ÁË7s×ÜÊ±³¤£©
-#define TEACH_TOTAL_STEP 35
-// ¶¨ÒåÁËÃ¿¸ö¶¯×÷×î´óµÄ²½½øÊý
-#define MAX_TOTAL_STEP 60
-// ¶¨ÒåÁËÒ»¸ö¶¯×÷×î¶à·ÖÎª¼¸²½
+#define ACTION_COUNT_MAX 30
+// ç¤ºæ•™æ€»æ­¥æ•°å‚æ•°è®¾ç½®ï¼Œé»˜è®¤å®šæ—¶æ­¥é•¿ä¸º5æ­¥/ç§’ï¼Œå¦‚æžœ35æ¬¡å¯¹åº”ä¸º7sçš„æ—¶é—´é•¿åº¦
+//#define TEACH_TOTAL_STEP 30
+// åŠ¨ä½œåº“æ¯æ­¥æœ€å¤§æ­¥æ•°è®¾ç½®ä¸º60
+extern int TEACH_TOTAL_STEP;
+
+#define MAX_TOTAL_STEP 80
+// å•ä¸ªåŠ¨ä½œæœ€å¤§ç»„åˆåŠ¨ä½œæ•°ä¸º5
 #define MAX_NUM_MOTION 5
 
-// ×ø±êµã½á¹¹Ìå£¨3Î¬¿Õ¼ä×ø±ê£©£¨ÓÃÓÚ·´½â£©
+#define POSE_SITTING 1   // å
+#define POSE_LYING 2     // è¶´
+#define POSE_STANDING 3  // ç«™ç«‹
+#define POSE_error 4     // é”™è¯¯/æœªçŸ¥å§¿æ€
+
+// ä¸‰ç»´ç‚¹ç»“æž„ä½“ï¼ˆ3ç»´ç©ºé—´åæ ‡ï¼‰ï¼Œç”¨äºŽæ³›ç”¨
 typedef struct
 {
     float x;
@@ -18,34 +25,32 @@ typedef struct
     float z;
 } Coordinate;
 
-// ÇéÐ÷ÀàÐÍÃ¶¾Ù
+// åŠ¨ä½œæƒ…ç»ªæžšä¸¾
 typedef enum
 {
-    EMOTION_NEUTRAL = 0, // ÖÐÐÔ
-    EMOTION_HAPPY,       // ¿ªÐÄ
-    EMOTION_SAD,         // ±¯ÉË
-    EMOTION_ANGRY,       // ·ßÅ­
-    EMOTION_SURPRISED,   // ¾ªÑÈ
-    EMOTION_CUSTOM       // ×Ô¶¨ÒåÀàÐÍ
+    EMOTION_NEUTRAL = 0, // ä¸­æ€§
+    EMOTION_HAPPY,       // å¼€å¿ƒ
+    EMOTION_SAD,         // ä¼¤å¿ƒ
+    EMOTION_ANGRY,       // æ„¤æ€’
+    EMOTION_SURPRISED,   // æƒŠå–œ
+    EMOTION_CUSTOM       // è‡ªå®šä¹‰æƒ…ç»ª
 } EmotionType;
 
-// ¶¯×÷ÐòÁÐ½á¹¹Ìå£¨µ¥²½¶¯×÷£©
+// åŠ¨ä½œæ­¥è¿›ç»“æž„ä½“ï¼ˆFlash å­˜å‚¨ï¼‰
 typedef struct
 {
-    const int16_t servoAngles[14]; // ¸Ã¶¯×÷ÏÂ¶æ»ú½Ç¶ÈÖµ ±£³Ö const£¬µ«Í¨¹ýÍâ²¿³£Á¿³õÊ¼»¯
+    const int16_t servoAngles[14]; // è¯¥åŠ¨ä½œä¸‹ç›®æ ‡è§’åº¦å€¼ ä½¿ç”¨ consté€šè¿‡å¤–éƒ¨åˆ—è¡¨åˆå§‹åŒ–
 } ServoActionStep;
 
-// ¶æ»ú¶¯×÷ÏµÁÐ½á¹¹Ìå
+// åŠ¨ä½œåºåˆ—ç»“æž„ä½“ï¼ˆFlash å­˜å‚¨ï¼‰
 typedef struct
 {
     uint16_t actionId;
-    const ServoActionStep *actions; // ¸ÄÎªÖ¸Õë£¬Ö¸Ïò Flash Êý¾Ý
-    EmotionType emotionType;        // ¶ÔÓ¦µÄÇéÐ÷ÀàÐÍ
-    uint16_t total_step;
-    float totalDuration;          // ×ÜÖ´ÐÐÊ±¼ä£¨µ¥Î»£ºms£©
-    int16_t startservoAngles[14]; // ¸Ã¶¯×÷¿ªÊ¼Ê±14¸ö¶æ»ú½Ç¶ÈÖµ
-    int16_t endservoAngles[14];   // ¸Ã¶¯×÷½áÊøÊ±14¸ö¶æ»ú½Ç¶ÈÖµ
-    uint8_t ifNeedBezier;         // ÊÇ·ñÐèÒª±´Èû¶ûÇúÏß²åÖµ
+    const ServoActionStep *actions; // æˆä¸ºæŒ‡é’ˆï¼ŒæŒ‡å‘ Flash æ•°ç»„
+    EmotionType emotionType;        // å¯¹åº”çš„è¿åŠ¨æƒ…ç»ª
+    uint8_t total_step;
+    float totalDuration;          // æ€»æ‰§è¡Œæ—¶é—´ï¼ˆå•ä½ï¼šmsï¼‰
+    uint8_t ifNeedBezier;         // æ˜¯å¦éœ€è¦è´å¡žå°”æ›²çº¿æ’å€¼
 } ServoActionSeries;
 
 typedef struct
@@ -53,23 +58,26 @@ typedef struct
     ServoActionSeries motion[MAX_NUM_MOTION];
     uint32_t point_total;
     uint32_t point_iter;
+    uint8_t posestart;
+    uint8_t poseend;
 } Motion_t;
 
+// ============ RAM ç‰ˆæœ¬ç»“æž„ä½“ï¼ˆç¤ºæ•™æ¨¡å¼ç”¨ï¼‰============
 typedef struct
 {
-    int16_t servoAngles[14]; // ¸Ã¶¯×÷ÏÂ¶æ»ú½Ç¶ÈÖµ
+    int16_t servoAngles[14]; // è¯¥åŠ¨ä½œä¸‹ç›®æ ‡è§’åº¦å€¼
 } ServoActionStep_ram;
 
 typedef struct
 {
-    uint16_t actionId;                           // ÏµÁÐ¶¯×÷Î¨Ò»±êÊ¶
-    ServoActionStep_ram actions[MAX_TOTAL_STEP]; // ¼Ù¶¨Ã¿Ò»¸ö±í´ïÇéÐ÷µÄÕû¸ö¶¯×÷±»²ð·ÖÎª10¸öÀëÉ¢µÄµ¥²½¶¯×÷
-    EmotionType emotionType;                     // ¶ÔÓ¦µÄÇéÐ÷ÀàÐÍ
+    uint16_t actionId;                           // ç³»åˆ—åŠ¨ä½œå”¯ä¸€æ ‡è¯†
+    ServoActionStep_ram actions[MAX_TOTAL_STEP]; // å‡å®šæ¯ä¸€ä¸ªåŠ¨ä½œä¸è¶…è¿‡10ä¸ªç¦»æ•£çš„åŠ¨ä½œç‚¹
+    EmotionType emotionType;                     // å¯¹åº”çš„è¿åŠ¨æƒ…ç»ª
     uint16_t total_step;
-    float totalDuration;          // ×ÜÖ´ÐÐÊ±¼ä£¨µ¥Î»£ºms£©
-    int16_t startservoAngles[14]; // ¸Ã¶¯×÷¿ªÊ¼Ê±14¸ö¶æ»ú½Ç¶ÈÖµ
-    int16_t endservoAngles[14];   // ¸Ã¶¯×÷½áÊøÊ±14¸ö¶æ»ú½Ç¶ÈÖµ
-    uint8_t ifNeedBezier;         // ÊÇ·ñÐèÒª±´Èû¶ûÇúÏß²åÖµ
+    float totalDuration;          // æ€»æ‰§è¡Œæ—¶é—´ï¼ˆå•ä½ï¼šmsï¼‰
+    int16_t startservoAngles[14]; // è¯¥åŠ¨ä½œèµ·å§‹æ—¶14ä¸ªèˆµæœºè§’åº¦å€¼
+    int16_t endservoAngles[14];   // è¯¥åŠ¨ä½œç»“æŸæ—¶14ä¸ªèˆµæœºè§’åº¦å€¼
+    uint8_t ifNeedBezier;         // æ˜¯å¦éœ€è¦è´å¡žå°”æ›²çº¿æ’å€¼
 } ServoActionSeries_ram;
 
 typedef struct
@@ -77,167 +85,59 @@ typedef struct
     ServoActionSeries_ram motion[MAX_NUM_MOTION];
     uint32_t point_total;
     uint32_t point_iter;
+    uint8_t posestart;
+    uint8_t poseend;
 } Motion_t_ram;
 
-// #pragma pack(pop)
+// ============ å‡½æ•°å£°æ˜Ž ============
 void Action_init(void);
 void Action_Teachmode_Init(void);
 void Action_Teachmode(void);
-extern ServoActionSeries_ram *Action_index[50];
+extern ServoActionSeries_ram *Action_index[ACTION_COUNT_MAX];
 extern int TEACHMODE;
 extern ServoActionSeries_ram Action_TEACH;
 extern int TEACH_OK;
 extern int TEACH_FINISH;
 
 extern Motion_t_ram _Action_TEACH;
-extern Motion_t_ram _Action_Standup;
-extern Motion_t_ram _Action_LieProne;
-extern Motion_t_ram _Action_BigLie;
-extern Motion_t_ram _Action_PronetoSit; // ·ÖÁ½²½
 
-extern Motion_t _Action_Walk;
-extern Motion_t _Active_Wave;
-extern Motion_t _Active_Sit;
-extern Motion_t _Active_SittoEat;
-extern Motion_t _Action_Hug;
-extern Motion_t _Action_Sit2Prone;
-extern Motion_t _Action_Test;
-extern Motion_t _Action_Hello;
-extern Motion_t _Action_ScratchHead;
-extern Motion_t _Action_Worship;
-extern Motion_t _Action_ShakeHead;
-extern Motion_t _Action_Pouting;
-extern Motion_t _Action_TurnThings;
-extern Motion_t _Action_SleepTilt;
-extern Motion_t _Action_WashFace;
-extern Motion_t _Action_SideLieScratch;
-extern Motion_t _Action_SitLegsOpen;
-extern Motion_t _Action_StandToSit;
-extern Motion_t _Action_SideLie;
-extern Motion_t _Action_WagHips;
+// ============ å§¿æ€åˆå§‹åŒ–åŠ¨ä½œ ============
+extern Motion_t MsittingInit;
+extern Motion_t MstandingInit;
+extern Motion_t MlyingInit;
 
-extern Motion_t _Action_HighFive;
-extern Motion_t _Action_HugKiss;
-extern Motion_t _Action_Handshake;
-extern Motion_t _Action_ScratchButt;
-extern Motion_t _Action_Bow;
-extern Motion_t _Action_Cheer;
-extern Motion_t _Action_DrawHeart;
-extern Motion_t _Action_StompFoot;
-extern Motion_t _Action_Drum;
-extern Motion_t _Action_RubEyes;
-extern Motion_t _Action_Yawn;
-extern Motion_t _Action_SitPatButt;
-extern Motion_t _Action_Eat;
-extern Motion_t _Action_Stretch;
-extern Motion_t _Action_StretchLying;
-extern Motion_t _Action_WaveStanding;
-extern Motion_t _Action_ScratchButtStanding;
-extern Motion_t _Action_SplitStanding;
-extern Motion_t _Action_PatTummy;
+// ============ ç«™ç«‹å§¿æ€åŠ¨ä½œ (POSE_STANDING) ============
+extern Motion_t Motion_Stand_Bow;       // éž èº¬
+extern Motion_t Motion_Stand_Dance1;    // è·³èˆž1
+extern Motion_t Motion_Stand_Dance2;    // è·³èˆž2
+extern Motion_t Motion_Stand_StepBack;  // åŽé€€
+extern Motion_t Motion_Stand_Salute;    // æ•¬ç¤¼
+extern Motion_t Motion_Stand_BlowKiss;  // é£žå»
+extern Motion_t Motion_Stand_Dance3;    // è·³èˆž3
+extern Motion_t Motion_Stand_Handshake; // ç«™ç«‹æ¡æ‰‹
+extern Motion_t Motion_Stand_Pray;      // æ‹œä¸€æ‹œ
 
-extern Motion_t M1;
-extern Motion_t M3;
-extern Motion_t M4;
-extern Motion_t M5;
-extern Motion_t M6;
-extern Motion_t M7;
-extern Motion_t M8;
-extern Motion_t M10;
-extern Motion_t M11;
-extern Motion_t M14;
-extern Motion_t M16;
-extern Motion_t M17;
-extern Motion_t M18;
-extern Motion_t M19;
-extern Motion_t M20;
-extern Motion_t M21;
-extern Motion_t M24;
-extern Motion_t M26;
-extern Motion_t M28;
-extern Motion_t M31;
-extern Motion_t M32;
-extern Motion_t M33;
-extern Motion_t M34;
-extern Motion_t M37;
-extern Motion_t M38;
-extern Motion_t M46;
-extern Motion_t M49;
+// ============ åå§¿æ€åŠ¨ä½œ (POSE_SITTING) ============
+extern Motion_t Motion_Sit_Handshake;   // æ¡æ‰‹
+extern Motion_t Motion_Sit_Hello;       // æ‰“æ‹›å‘¼
+extern Motion_t Motion_Sit_Stretch;     // ä¼¸æ‡’è…°
+extern Motion_t Motion_Sit_ShakeHead;   // æ‘‡å¤´
+extern Motion_t Motion_Sit_Cheer;       // åŠ æ²¹
+extern Motion_t Motion_Sit_Yawn;        // æ‰“å“ˆæ¬ 
+extern Motion_t Motion_Sit_Drum;        // æ‰“é¼“
+extern Motion_t Motion_Sit_WashFace;    // æ´—è„¸
 
-extern Motion_t M61;
-extern Motion_t M64;
-extern Motion_t M65;
-extern Motion_t M67;
-extern Motion_t M70;
-extern Motion_t M71;
-extern Motion_t M73;
-extern Motion_t M75;
-extern Motion_t M76;
-extern Motion_t M78;
-extern Motion_t M80;
-extern Motion_t M83;
-extern Motion_t M87;
-extern Motion_t M89;
-extern Motion_t M90;
-extern Motion_t M91;
-extern Motion_t M92;
-extern Motion_t M94;
-extern Motion_t M121;
-extern Motion_t M123;
-extern Motion_t M125;
-extern Motion_t M126;
-extern Motion_t M136;
-extern Motion_t M138;
-extern Motion_t M151;
-extern Motion_t M152;
-extern Motion_t M155;
-extern Motion_t M156;
-extern Motion_t M157;
-extern Motion_t M162;
-extern Motion_t M163;
-extern Motion_t M164;
-extern Motion_t M166;
-extern Motion_t M167;
-extern Motion_t M168;
-extern Motion_t M169;
-extern Motion_t M170;
-extern Motion_t M171;
-extern Motion_t M172;
-extern Motion_t M173;
-extern Motion_t M176;
-extern Motion_t M178;
-extern Motion_t M182;
-extern Motion_t M184;
-extern Motion_t M191;
-extern Motion_t M195;
-extern Motion_t M196;
-extern Motion_t M202;
-extern Motion_t M204;
-extern Motion_t M205;
-//5.25
-extern Motion_t M63;  // ÐÂÔö
-extern Motion_t M77;  // ÐÂÔö
-extern Motion_t M98;  // ÐÂÔö
-extern Motion_t M99;  // ÐÂÔö
-extern Motion_t M102; // ÐÂÔö
-extern Motion_t M130; // ÐÂÔö
-extern Motion_t M137; // ÐÂÔö
-extern Motion_t M148; // ÐÂÔö
-extern Motion_t M160; // ÐÂÔö
-extern Motion_t M177; // ÐÂÔö
-extern Motion_t M179;
-extern Motion_t M181;
-extern Motion_t M189;
-extern Motion_t M193;
-extern Motion_t M197;
-extern Motion_t M199;
-extern Motion_t M207;
-extern Motion_t M210;
-extern Motion_t MCrawlToSit;   // Å¿->×ø
-extern Motion_t MSitToCrawl;   // ×ø->Å¿
-extern Motion_t MSitToStand;   // ×ø->Õ¾
-extern Motion_t MStandToSit;   // Õ¾->×ø
-extern Motion_t MStandToCrawl; // Õ¾->Å¿
-extern Motion_t MCrawlToStand; // Å¿->Õ¾
+// ============ è¶´å§¿æ€åŠ¨ä½œ (POSE_LYING) ============
+extern Motion_t Motion_Lie_WagHips;     // æ‰­å±è‚¡
+extern Motion_t Motion_Lie_PushUp;      // ä¿¯å§æ’‘
+extern Motion_t Motion_Lie_Crawl;       // çˆ¬è¡Œ
+
+// ============ å§¿æ€åˆ‡æ¢åŠ¨ä½œ ============
+extern Motion_t Motion_SitToStand;      // å->ç›´ç«‹
+extern Motion_t Motion_StandToSit;      // ç›´ç«‹->å
+extern Motion_t Motion_SitToLie;        // å->è¶´
+extern Motion_t Motion_LieToSit;        // è¶´->å
+extern Motion_t Motion_LieToStand;      // è¶´->ç«™
+extern Motion_t Motion_StandToLie;      // ç«™->è¶´
 
 #endif

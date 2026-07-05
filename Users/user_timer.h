@@ -8,6 +8,7 @@
 #define USER_htim_teach   htim6
 #define USER_TIM_SERVO	TIM4
 
+#define ACTIONTIMESTEP 170
 
 typedef struct
 {
@@ -21,6 +22,7 @@ void User_TimerInit(void);
 void User_TeachTimerInit(void);
 void User_TimerServoIRQ(void);
 void User_TimerTeachIRQ(void);
+void User_TimerActionIRQ(void);
 
 #endif
 

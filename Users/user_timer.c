@@ -1,10 +1,10 @@
 #include "user_timer.h"
 #include "user_communication.h"
-#include "user_adc.h"
+#include "DS18B20.h"
 
-// ÉèÖÃÄ£Ê½
+// è®¾ç½®æ¨¡å¼
 #define _CMD_TYPE_SET 0
-// ¶ÁÈ¡Ä£Ê½
+// è¯»å–æ¨¡å¼
 #define _CMD_TYPE_READ 1
 
 #define _READ_TYPE_ANG 0
@@ -21,49 +21,62 @@ uint8_t flag_act = 0;
 void User_TimerInit(void)
 {
 	HAL_TIM_Base_Start_IT(&USER_htim_servo); //
+	
 }
 void User_TeachTimerInit(void)
 {
 	HAL_TIM_Base_Start_IT(&htim6);
+	HAL_TIM_Base_Start_IT(&htim3); //
 }
-/*
-¶æ»ú¿ØÖÆ£º
-¶¨Ê±Æ÷ÖÜÆÚ£º1ms
-¿ØÖÆ²½Öè£º
-				1ms->¸÷´®¿ÚDMA·¢ËÍ¸Ã´®¿Ú×ÜÏßÉÏ¸÷¶æ»ú£¨6¸ö£©½Ç¶ÈºÍÖ´ĞĞÊ±¼ä£¨1.5ms£©
-				3ms->¸÷´®¿ÚDMA·¢ËÍ¸Ã´®¿Ú×ÜÏßÉÏµÚ1¸ö¶æ»ú×´Ì¬¶ÁÈ¡ÇëÇóÖ¸Áî£¨400us£©
-				4ms->¸÷´®¿ÚDMA·¢ËÍ¸Ã´®¿Ú×ÜÏßÉÏµÚ2¸ö¶æ»ú×´Ì¬¶ÁÈ¡ÇëÇóÖ¸Áî£¨400us£©
-				5ms->¸÷´®¿ÚDMA·¢ËÍ¸Ã´®¿Ú×ÜÏßÉÏµÚ3¸ö¶æ»ú×´Ì¬¶ÁÈ¡ÇëÇóÖ¸Áî£¨400us£©
-				6ms->¸÷´®¿ÚDMA·¢ËÍ¸Ã´®¿Ú×ÜÏßÉÏµÚ4¸ö¶æ»ú×´Ì¬¶ÁÈ¡ÇëÇóÖ¸Áî£¨400us£©
-				7ms->¸÷´®¿ÚDMA·¢ËÍ¸Ã´®¿Ú×ÜÏßÉÏµÚ5¸ö¶æ»ú×´Ì¬¶ÁÈ¡ÇëÇóÖ¸Áî£¨400us£©
-Ã¿¸ö¶æ»ú½Ç¶È¿ØÖÆÖÜÆÚ£º7ms
-Ã¿¸ö¶æ»ú½Ç¶È¶ÁÈ¡ÖÜÆÚ£º7ms
-*/
 
+/*
+èˆµæœºæ§åˆ¶ï¼š
+å®šæ—¶å™¨å‘¨æœŸï¼š1ms
+æ§åˆ¶æ­¥éª¤ï¼š
+				1ms->å„ä¸²å£DMAå‘é€è¯¥ä¸²å£æ€»çº¿ä¸Šå„èˆµæœºï¼ˆ6ä¸ªï¼‰è§’åº¦å’Œæ‰§è¡Œæ—¶é—´ï¼ˆ1.5msï¼‰
+				3ms->å„ä¸²å£DMAå‘é€è¯¥ä¸²å£æ€»çº¿ä¸Šç¬¬1ä¸ªèˆµæœºçŠ¶æ€è¯»å–è¯·æ±‚æŒ‡ä»¤ï¼ˆ400usï¼‰
+				4ms->å„ä¸²å£DMAå‘é€è¯¥ä¸²å£æ€»çº¿ä¸Šç¬¬2ä¸ªèˆµæœºçŠ¶æ€è¯»å–è¯·æ±‚æŒ‡ä»¤ï¼ˆ400usï¼‰
+				5ms->å„ä¸²å£DMAå‘é€è¯¥ä¸²å£æ€»çº¿ä¸Šç¬¬3ä¸ªèˆµæœºçŠ¶æ€è¯»å–è¯·æ±‚æŒ‡ä»¤ï¼ˆ400usï¼‰
+				6ms->å„ä¸²å£DMAå‘é€è¯¥ä¸²å£æ€»çº¿ä¸Šç¬¬4ä¸ªèˆµæœºçŠ¶æ€è¯»å–è¯·æ±‚æŒ‡ä»¤ï¼ˆ400usï¼‰
+				7ms->å„ä¸²å£DMAå‘é€è¯¥ä¸²å£æ€»çº¿ä¸Šç¬¬5ä¸ªèˆµæœºçŠ¶æ€è¯»å–è¯·æ±‚æŒ‡ä»¤ï¼ˆ400usï¼‰
+æ¯ä¸ªèˆµæœºè§’åº¦æ§åˆ¶å‘¨æœŸï¼š7ms
+æ¯ä¸ªèˆµæœºè§’åº¦è¯»å–å‘¨æœŸï¼š7ms
+*/
+extern uint8_t personTeachFlag;
 extern uint8_t OPEN;
 extern uint8_t Init_OK;
-extern uint8_t touchTopofHead_Downside;
-extern uint8_t touchChin_Downside;
-extern uint8_t humanDetection_Downside;
+extern float startPose;
+uint16_t countForMPUReset;
 uint8_t testinput;
+uint8_t flagForMPUReset;
+extern uint8_t releaseSevroFlag;
 void User_TimerServoIRQ(void)
 {
-	User_AdcBatVoltGet();
-	//Key_Downside_Record();
-	if(touchTopofHead_Downside == 1 && Init_OK == 1 && ActionNow == IDLE && TEACHMODE == 0)//ÃşÄÔ´ü
+	
+//	if(touchTopofHead_Downside == 1 && Init_OK == 1 && ActionNow == IDLE && TEACHMODE == 0)//æ‘¸è„‘è¢‹
+//	{
+////		ActionNow = ACTION_M65;//M61. å¤´ç¼“æ…¢å·¦å³æ‘‡åŠ¨å‡ ä¸‹åä¿æŒé™æ­¢ã€‚
+
+//	}
+//	if(touchChin_Downside == 1 && Init_OK == 1 && ActionNow == IDLE && TEACHMODE == 0)//æ‘¸ä¸‹å·´
+//	{
+////		ActionNow = ACTION_M61;//M65. æŠ¬æ‰‹æ‘¸è„¸æˆ–è€³æœµï¼Œéšåç¼“ç¼“æ”¾ä¸‹ã€‚
+//	}
+//	if(humanDetection_Downside == 1 && Init_OK == 1 && ActionNow == IDLE && TEACHMODE == 0)//äººä½“æ£€æµ‹
+//	{
+////		ActionNow = ACTION_HELLO;//hello
+//	}
+	/*é™€èºä»ªé‡å¯*/
+	countForMPUReset++;
+	if(countForMPUReset > 8500 && flagForMPUReset == 0)
 	{
-		ActionNow = ACTION_M65;//M61. Í·»ºÂı×óÓÒÒ¡¶¯¼¸ÏÂºó±£³Ö¾²Ö¹¡£
+		countForMPUReset = 8501;
+		if(startPose == 0)
+		{
+			SoftwareReset();
+		}
+		else flagForMPUReset = 1;
 	}
-	if(touchChin_Downside == 1 && Init_OK == 1 && ActionNow == IDLE && TEACHMODE == 0)//ÃşÏÂ°Í
-	{
-		ActionNow = ACTION_M61;//M65. Ì§ÊÖÃşÁ³»ò¶ú¶ä£¬Ëæºó»º»º·ÅÏÂ¡£
-	}
-	if(humanDetection_Downside == 1 && Init_OK == 1 && ActionNow == IDLE && TEACHMODE == 0)//ÈËÌå¼ì²â
-	{
-		ActionNow = ACTION_HELLO;//hello
-	}
-//	if(testinput == 1) ActionNow = ACTION_M61;
-//		else  ActionNow = ACTION_M65;
 	
 	static uint8_t cmd_type = _CMD_TYPE_READ;
 	static uint8_t read_type = _READ_TYPE_ANG;
@@ -74,12 +87,13 @@ void User_TimerServoIRQ(void)
 		SERVO_COMM_BUSY = 1;
 		switch (cmd_type)
 		{
-		case _CMD_TYPE_SET: // ×Ü¹²12¸ö¶æ»ú·¢ËÍÒ»´Î¿ØÖÆÖ¸Áî£¬´®¿ÚÍ¨ĞÅÊ±¼äÔ¼750us
+		case _CMD_TYPE_SET: // æ€»å…±12ä¸ªèˆµæœºå‘é€ä¸€æ¬¡æ§åˆ¶æŒ‡ä»¤ï¼Œä¸²å£é€šä¿¡æ—¶é—´çº¦750us
 		{
 			wait_to_set++;
 			if (wait_to_set == 1)
 			{
-				if (TEACHMODE != 1 && flag_act == 1 && actionStop == 0) // Ê¾½ÌÄ£Ê½ÏÂ£¬µç»ú²»¶¯
+				if ((TEACHMODE != 1 && flag_act == 1 && actionStop == 0 ) || personTeachFlag == 1) // ç¤ºæ•™æ¨¡å¼ä¸‹ï¼Œç”µæœºä¸åŠ¨
+//					;
 					User_AllSetAngTime();
 			}
 			else if (wait_to_set == 2) // 2
@@ -89,16 +103,22 @@ void User_TimerServoIRQ(void)
 			}
 		}
 		break;
-		case _CMD_TYPE_READ: // ·¢ËÍÒ»´Î¶ÁÖ¸Áî£¬´Ó·¢ËÍ¸ÃÖ¸Áîµ½¶æ»ú·µ»ØÊı¾İ´®¿Ú×Ü¹²Í¨ĞÅÊ±¼äÔ¼400us£¨·¢ËÍ100us£¬µÈ´ıÏìÓ¦100us£¬»Ø´«200us£©
+		case _CMD_TYPE_READ: // å‘é€ä¸€æ¬¡è¯»æŒ‡ä»¤ï¼Œä»å‘é€è¯¥æŒ‡ä»¤åˆ°èˆµæœºè¿”å›æ•°æ®ä¸²å£æ€»å…±é€šä¿¡æ—¶é—´çº¦400usï¼ˆå‘é€100usï¼Œç­‰å¾…å“åº”100usï¼Œå›ä¼ 200usï¼‰
 		{
-			if (read_type == _READ_TYPE_ANG) // ¶Á½Ç¶È
+			if (read_type == _READ_TYPE_ANG) // è¯»è§’åº¦
 			{
 				cnt_servo_id++;
-				FEETECH_ReadServoPos(cnt_servo_id % 2 + 11); // Í·²¿Á½¸ö¶æ»úÂÖÁ÷¶ÁÈ¡
+//				FEETECH_ReadServoPos(cnt_servo_id % 2 + 11); // å¤´éƒ¨ä¸¤ä¸ªèˆµæœºè½®æµè¯»å–
+//				if((releaseSevroFlag == 1) && (cnt_servo_id == 1|| cnt_servo_id == 2|| cnt_servo_id == 3
+//					|| cnt_servo_id == 6|| cnt_servo_id == 7|| cnt_servo_id == 8))
+//				{
+//				}
+//				else
+				if((releaseSevroFlag == 0))
 				FEETECH_ReadServoPos(cnt_servo_id);
-				FEETECH_ReadServoPos(cnt_servo_id + 5);
+//				FEETECH_ReadServoPos(cnt_servo_id + 5);
 			}
-			if (cnt_servo_id == 5) // 5¸ö1ms·Ö±ğ¶ÁÈ¡ÁË5¸ö¶æ»úµÄÊı¾İºó£¬½øÈëĞÂµÄÖÜÆÚ²¢ÇĞ»»¶ÁÈ¡ÄÚÈİ£¨¶Á½Ç¶È/¶ÁÊı¾İ£©
+			if (cnt_servo_id == 12) // 5ä¸ª1msåˆ†åˆ«è¯»å–äº†5ä¸ªèˆµæœºçš„æ•°æ®åï¼Œè¿›å…¥æ–°çš„å‘¨æœŸå¹¶åˆ‡æ¢è¯»å–å†…å®¹ï¼ˆè¯»è§’åº¦/è¯»æ•°æ®ï¼‰
 			{
 				cnt_servo_id = 0;
 				cmd_type = _CMD_TYPE_SET;
@@ -110,34 +130,90 @@ void User_TimerServoIRQ(void)
 		}
 		SERVO_COMM_BUSY = 0;
 	}
+	
+		static uint16_t cnt = 0;
+	static uint8_t first_time = 1;
+	
+	if(first_time == 1)
+	{
+		first_time = 0;
+		ds18b20_search_ID();
+	}
+	if(cnt++ == 100)
+	{
+		ds18b20_get_temperature_multiple();		
+		cnt = 0;
+	}
+	
 }
-// ÓÃÓÚÊ¾½ÌµÄ¶¨Ê±Æ÷ÖĞ¶Ï£¬Èç¹û²»ĞèÒªÊ¾½ÌÄ£Ê½¿ÉÒÔ¹Ø±Õ
-int T_COUNTER = 0;		  // ¼ÇÂ¼Ê¾½Ì¹ı³ÌÖĞ½øÈëÖĞ¶ÏµÄ´ÎÊı
-int step_record = 0;	  // ¼ÇÂ¼´Ë´ÎÊ¾½ÌÄ£Ê½µÄ³õÊ¼Ê±¿Ì
-int last_step_record = 0; // ¼ÇÂ¼ÉÏ´ÎÊ¾½ÌÄ£Ê½µÄ½áÊøÊ±¿Ì
+//int vount_action;
+// ç”¨äºç¤ºæ•™çš„å®šæ—¶å™¨ä¸­æ–­ï¼Œå¦‚æœä¸éœ€è¦ç¤ºæ•™æ¨¡å¼å¯ä»¥å…³é—­
+int T_COUNTER = 0;		  // è®°å½•ç¤ºæ•™è¿‡ç¨‹ä¸­è¿›å…¥ä¸­æ–­çš„æ¬¡æ•°
+int __t_count = 0;
+int step_record = 0;	  // è®°å½•æ­¤æ¬¡ç¤ºæ•™æ¨¡å¼çš„åˆå§‹æ—¶åˆ»
+int last_step_record = 0; // è®°å½•ä¸Šæ¬¡ç¤ºæ•™æ¨¡å¼çš„ç»“æŸæ—¶åˆ»
+extern uint8_t PoweronAction;
+int count_power;
 void User_TimerTeachIRQ(void)
 {
+//	
+//	if (HAL_GPIO_ReadPin(Power_in_GPIO_Port, Power_in_Pin) == GPIO_PIN_RESET)
+//  {
+//	  count_power++;
+//  }
+//  else count_power = 0;
+//  if(count_power > 6) HAL_GPIO_WritePin(Power_out_GPIO_Port,Power_out_Pin,GPIO_PIN_RESET);//æ¿å­ä¾›ç”µ
+  
+//	vount_action++;
+//	if(vount_action >= 100)
+//	{
+//		vount_action = 0;
+//		if(PoweronAction == 0)
+//			{
+//				PoweronAction = 1;
+//				ActionNow = ACTION_Yawn;
+//			}
+//	}
+	
+//	if (__HAL_TIM_GET_IT_SOURCE(&USER_htim_teach, TIM_IT_UPDATE) != RESET)
+//	{
+//		if (TEACHMODE == 1) // å¦‚æœæ˜¯ç¤ºæ•™æ¨¡å¼
+//		{
+//			if(TEACH_OK == 1)
+//			{
+//				if(T_COUNTER == 1)
+//				{
+//					__t_count++;
+//					// å­˜å‚¨ç¤ºæ•™è¿‡ç¨‹ä¸­çš„è§’åº¦æ•°æ®
+//					for (int i = 0; i < 14; i++)
+//						_Action_TEACH.motion[0].actions[__t_count - 1].servoAngles[i] = SERVO[i].pos_read;
+//					T_COUNTER = 0;
+//				}
+//			}
+//		}
+//	}
 
 	if (__HAL_TIM_GET_IT_SOURCE(&USER_htim_teach, TIM_IT_UPDATE) != RESET)
 	{
-		if (TEACHMODE == 1) // Èç¹ûÊÇÊ¾½ÌÄ£Ê½
+		if (TEACHMODE == 1) // å¦‚æœæ˜¯ç¤ºæ•™æ¨¡å¼
 		{
-			T_COUNTER++;															   // ½øÈë¼ÆÊı
-			if (step_record == last_step_record && TEACH_OK == 1 && TEACH_FINISH != 1) // Èç¹ûÊ¾½ÌÄ£Ê½¸Õ¸Õ¿ªÊ¼
+			T_COUNTER++;															   // è¿›å…¥è®¡æ•°
+			if (step_record == last_step_record && TEACH_OK == 1 && TEACH_FINISH != 1) // å¦‚æœç¤ºæ•™æ¨¡å¼åˆšåˆšå¼€å§‹
 			{
-				step_record = T_COUNTER; // ¼ÇÂ¼´Ë´ÎÊ¾½ÌÄ£Ê½µÄ³õÊ¼Ê±¿Ì
+				step_record = T_COUNTER; // è®°å½•æ­¤æ¬¡ç¤ºæ•™æ¨¡å¼çš„åˆå§‹æ—¶åˆ»
 			}
 			else if (step_record != last_step_record && TEACH_OK == 1 && TEACH_FINISH != 1)
 			{
 				if (T_COUNTER - step_record > TEACH_TOTAL_STEP)
 				{
-					// ½áÊø±¾´ÎÊ¾½Ì
+					// ç»“æŸæœ¬æ¬¡ç¤ºæ•™
 					TEACH_FINISH = 1;
+					personTeachFlag = 0;
 					last_step_record = step_record;
 				}
 				else if ((T_COUNTER - step_record) >= 0 && (T_COUNTER - step_record) <= TEACH_TOTAL_STEP)
 				{
-					// ´æ´¢Ê¾½Ì¹ı³ÌÖĞµÄ½Ç¶ÈÊı¾İ
+					// å­˜å‚¨ç¤ºæ•™è¿‡ç¨‹ä¸­çš„è§’åº¦æ•°æ®
 					for (int i = 0; i < 14; i++)
 						_Action_TEACH.motion[0].actions[T_COUNTER - step_record - 1].servoAngles[i] = SERVO[i].pos_read;
 				}
@@ -145,3 +221,31 @@ void User_TimerTeachIRQ(void)
 		}
 	}
 }
+
+
+uint16_t timerStepForAction;
+extern uint16_t timerStepForActionLast;
+uint16_t actionSwitchTime = ACTIONTIMESTEP;//0.2såˆ‡æ¢ä¸€æ¬¡ï¼Œå’Œç¤ºæ•™ä¸€æ ·
+
+uint16_t countTimerStepForAction = 0;
+void User_TimerActionIRQ(void)
+{
+	if(ActionNow != IDLE)
+	{
+		countTimerStepForAction ++;
+//		timerStepForAction ++;
+	}
+	else 
+	{
+		countTimerStepForAction = 0;
+		timerStepForAction = 0;
+		timerStepForActionLast = 0;
+	}
+	
+	if(countTimerStepForAction >= actionSwitchTime)
+	{
+		countTimerStepForAction = 0;
+		timerStepForAction ++;
+	}
+}
+

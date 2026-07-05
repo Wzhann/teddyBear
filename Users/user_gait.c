@@ -10,7 +10,7 @@ void User_GaitInit(void)
 
 void User_GaitZeroPoint(void)
 {
-	SERVO[1].ang_set = 0;//���������п���ʱ���������ang_set������ֵ������Ŀ��Ʒ��ڶ�ʱ���ж����Զ���ɡ�
+	SERVO[1].ang_set = 0;//工作过程中可随时给该数组的ang_set变量赋值，舵机的控制放在定时器中断中自动完成。
 	SERVO[2].ang_set = 0;
 	SERVO[3].ang_set = 0;
 	SERVO[4].ang_set = 0;
@@ -23,7 +23,7 @@ void User_GaitZeroPoint(void)
 	SERVO[11].ang_set = 0;
 	SERVO[12].ang_set = 0;
 
-	User_SeovoActTimeCalcu();//���ϽǶȲ������¸�ֵ����øú����Զ�������ת��ʱ��������Ƕȸñ���Խ����Ҫ��ʱ��Խ����
+	User_SeovoActTimeCalcu();//以上角度参数从新赋值后调用该函数自动计算舵机转动时间参数，角度该变量越大需要的时间越长。
 }
 
 void User_GaitStand(void)

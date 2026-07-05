@@ -1,26 +1,169 @@
 #include "user_communication.h"
 #include <string.h>
 #include "main.h"
+#include "user_imu_i2c.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include "cmsis_os.h"
+#include "user_servo.h"
+#include "user_flash.h"
+#include "user_IAP.h"
+#include "DS18B20.h"
+#include "usart.h"
 
-ProtocolHandle ph; // Ğ­Òé¾ä±úÊµÀı
-uint8_t actionStop = 0;
+USART_SERVO_TYPEDEF USART_ONE = {0};
+ProtocolHandle ph;        // Ğ­ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½
+uint8_t actionStop = 0;   // ï¿½ï¿½ï¿½ï¿½Í£ï¿½Â¶ï¿½ï¿½ï¿½
+uint8_t actioninIdle = 0; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¬ï¿½Ï¶ï¿½ï¿½ï¿½
 WorkStatus stateRobot;
+ACTION_STATE ActionReceive;
+IOfunctionState ioState;
+PowerType_T powerState_t;
+uint32_t flagForUpdate[8] = {0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa};
+
+uint8_t actionINDEXForshow1[13] = {43, 47, 48, 49, 45, 53, 58, 55, 56, 73, 75, 167, 29};
+uint8_t showModeFlag = 0;
+
+void SoftwareReset(void)
+{
+    __set_FAULTMASK(1); // ï¿½Ø±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ¶ï¿½
+    NVIC_SystemReset(); // ï¿½ï¿½ï¿½ï¿½ÏµÍ³ï¿½ï¿½Î»
+}
+
+// IOÄ£ï¿½ï¿½//
+/*LED:0--ï¿½ï¿½ï¿½ï¿½1--ï¿½ï¿½*/
+void ledSet(uint8_t mode)
+{
+    if (mode == 1)
+        HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+    else if (mode == 0)
+        HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+    else
+        ;
+}
+/*buzzer:0--Í£ï¿½ï¿½1--ï¿½ï¿½*/
+void buzzerSet(uint8_t mode)
+{
+    if (mode == 1)
+        HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_SET);
+    else if (mode == 0)
+        HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_RESET);
+    else
+        ;
+}
+/*FAN:0--ï¿½Ø£ï¿½1--ï¿½ï¿½*/
+void fanSet(uint8_t mode)
+{
+    if (mode == 1)
+        HAL_GPIO_WritePin(FAN_GPIO_Port, FAN_Pin, GPIO_PIN_SET);
+    else if (mode == 0)
+        HAL_GPIO_WritePin(FAN_GPIO_Port, FAN_Pin, GPIO_PIN_RESET);
+    else
+        ;
+}
+
+void RGB_Flash_InOneSecond(uint8_t times)
+{
+    if (times == 0)
+    {
+        ledSet(LEDLIGHT_OFF);
+        osDelay(pdMS_TO_TICKS(1000));
+        return;
+    }
+    if (times > 10)
+    {
+        // ï¿½ï¿½ï¿½timesï¿½ï¿½ï¿½ó£¬¿ï¿½ï¿½Üµï¿½ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½ï¿½Ë¸Ê±ï¿½ï¿½ï¿½ï¿½Ì£ï¿½Ó°ï¿½ï¿½ï¿½Ó¾ï¿½Ğ§ï¿½ï¿½
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½timesï¿½ï¿½ï¿½ï¿½ï¿½ßµï¿½ï¿½ï¿½ï¿½ß¼ï¿½
+        times = 10; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë¸ï¿½ï¿½ï¿½ï¿½
+    }
+
+    uint32_t flash_duration = pdMS_TO_TICKS(1000 / times); // Ã¿ï¿½ï¿½ï¿½ï¿½Ë¸ï¿½ï¿½ï¿½Ü³ï¿½ï¿½ï¿½Ê±ï¿½ä£¨tickï¿½ï¿½
+    uint32_t half_flash = flash_duration / 2;              // Ï¨ï¿½ï¿½Íµï¿½ï¿½ï¿½ï¿½ï¿½Õ¼Ò»ï¿½ï¿½Ê±ï¿½ï¿½
+
+    for (int i = 0; i < times; i++)
+    {
+        ledSet(LEDLIGHT_OFF);
+        osDelay(half_flash);
+        ledSet(LEDLIGHT_ON);
+        osDelay(half_flash);
+    }
+    ledSet(LEDLIGHT_OFF);
+    osDelay(pdMS_TO_TICKS(1000));
+}
+
+void BUZZER_Flash_InOneSecond(uint8_t times)
+{
+    if (times == 0)
+    {
+        buzzerSet(BUZZER_OFF);
+        osDelay(pdMS_TO_TICKS(1000));
+        return;
+    }
+    if (times > 10)
+    {
+        // ï¿½ï¿½ï¿½timesï¿½ï¿½ï¿½ó£¬¿ï¿½ï¿½Üµï¿½ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½ï¿½Ë¸Ê±ï¿½ï¿½ï¿½ï¿½Ì£ï¿½Ó°ï¿½ï¿½ï¿½Ó¾ï¿½Ğ§ï¿½ï¿½
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½timesï¿½ï¿½ï¿½ï¿½ï¿½ßµï¿½ï¿½ï¿½ï¿½ß¼ï¿½
+        times = 10; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë¸ï¿½ï¿½ï¿½ï¿½
+        buzzerSet(BUZZER_ON);
+    }
+    else
+    {
+        uint32_t flash_duration = pdMS_TO_TICKS(1000 / times); // Ã¿ï¿½ï¿½ï¿½ï¿½Ë¸ï¿½ï¿½ï¿½Ü³ï¿½ï¿½ï¿½Ê±ï¿½ä£¨tickï¿½ï¿½
+        uint32_t half_flash = flash_duration / 2;              // Ï¨ï¿½ï¿½Íµï¿½ï¿½ï¿½ï¿½ï¿½Õ¼Ò»ï¿½ï¿½Ê±ï¿½ï¿½
+
+        for (int i = 0; i < times; i++)
+        {
+            buzzerSet(BUZZER_OFF);
+            osDelay(half_flash);
+            buzzerSet(BUZZER_ON);
+            osDelay(half_flash);
+        }
+        buzzerSet(BUZZER_OFF);
+        osDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+int getHorizontalAng(void)
+{
+    int angleX;
+    angleX = (int)(SERVO[11].pos_read - servo11_mid) / 4096.0 * 360.0;
+    //	if(angleX > 200) angleX -=360;
+    return angleX;
+}
+
+int getVerticalAng(void)
+{
+    int angleY;
+    angleY = (int)(SERVO[12].pos_read - servo12_mid) / 4096.0 * 360.0;
+    return angleY;
+}
+
 /**
- * @brief Í¨ĞÅÄ£¿é³õÊ¼»¯
- * @note ÅäÖÃUARTºÍDMA£¬ÆôÓÃ¿ÕÏĞÖĞ¶Ï
+ * @brief Í¨ï¿½ï¿½Ä£ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½
+ * @note ï¿½ï¿½ï¿½ï¿½UARTï¿½ï¿½DMAï¿½ï¿½ï¿½ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½ï¿½Ğ¶ï¿½
  */
 void User_CommunicationInit(void)
 {
-    ph.huart = &huart4;       // UART¾ä±ú
-    ph.hdma = &hdma_uart4_rx; // DMA¾ä±ú
-    ph.buf_idx = 0;           // ³õÊ¼»¯»º³åÇøË÷Òı
-    __HAL_UART_ENABLE_IT(ph.huart, UART_IT_IDLE);
-    HAL_UART_Receive_DMA(ph.huart, ph.rx_buf[ph.buf_idx], MAX_DATA_LEN + 9);
+    ph.huart = &huart4;       // UARTå¥æŸ„
+    ph.hdma = &hdma_uart4_rx; // DMAå¥æŸ„
+    ph.buf_idx = 0;           // DMAç¯ç¼“å†²ä½¿ç”¨ rx_buf[0]
+
+    // ä½¿ç”¨ HAL IDLE-To-DMA APIï¼šè‡ªåŠ¨å¤„ç† IDLE ä¸­æ–­ + DMA æŒç»­æ¥æ”¶
+    HAL_UARTEx_ReceiveToIdle_DMA(ph.huart, (uint8_t *)ph.rx_buf[ph.buf_idx], MAX_DATA_LEN + 9);
+
+    //	HAL_Delay(1);
+    // USART_ONE.p_usart_n = &huart7;
+    // USART_ONE.p_hdma_usart_n_rx = &hdma_uart7_rx;
+
+    // //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ¶Ï½ï¿½ï¿½ï¿½
+    // __HAL_UART_ENABLE_IT(USART_ONE.p_usart_n, UART_IT_IDLE);
+    // HAL_UART_Receive_DMA(USART_ONE.p_usart_n, (uint8_t*)USART_ONE.usart_rx_buf, USART_SERVO_RX_SIZE);
 }
 
 void Single_Key_Record(uint8_t *key, uint8_t *last_key, uint8_t *key_downside, uint8_t *key_upside)
 {
-    // ÏÂ½µÑØ¼ì²â
+    // ï¿½Â½ï¿½ï¿½Ø¼ï¿½ï¿½
     if ((*last_key == 1) && (*key == 0))
     {
         *key_downside = 1;
@@ -29,7 +172,7 @@ void Single_Key_Record(uint8_t *key, uint8_t *last_key, uint8_t *key_downside, u
     {
         *key_downside = 0;
     }
-    // ÉÏÉıÑØ¼ì²â
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Ø¼ï¿½ï¿½
     if ((*last_key == 0) && (*key == 1))
     {
         *key_upside = 1;
@@ -42,26 +185,40 @@ void Single_Key_Record(uint8_t *key, uint8_t *last_key, uint8_t *key_downside, u
     *last_key = *key;
 }
 
-uint8_t touchTopofHead_Downside, touchTopofHead_Upside, touchTopofHead, Last_touchTopofHead; // ´¥ÃşÍ·²¿
-uint8_t touchChin_Downside, touchChin_Upside, touchChin, Last_touchChin;                     // ´¥ÃşÏÂ°Í
-uint8_t humanDetection_Downside, humanDetection_Upside, humanDetection, Last_humanDetection; // ´¥ÃşÏÂ°Í
+uint8_t touchTopofHead_Downside, touchTopofHead_Upside, touchTopofHead, Last_touchTopofHead;                                 // ï¿½ï¿½ï¿½ï¿½Í·ï¿½ï¿½
+uint8_t touchChin_Downside, touchChin_Upside, touchChin, Last_touchChin;                                                     // ï¿½ï¿½ï¿½ï¿½ï¿½Â°ï¿½
+uint8_t touchBody_Downside, touchBody_Upside, touchBody, Last_touchBody;                                                     // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+uint8_t humanDetectionAbdomen_Downside, humanDetectionAbdomen_Upside, humanDetectionAbdomen, Last_humanDetectionAbdomen;     // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+uint8_t humanDetectionBackside_Downside, humanDetectionBackside_Upside, humanDetectionBackside, Last_humanDetectionBackside; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+uint8_t IOForCharging_Downside, IOForCharging_Upside, IOForCharging, Last_IOForCharging;                                     // ï¿½ï¿½ï¿½ï¿½ï¿½
 void Key_Downside_Record(void)
 {
-    touchTopofHead = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_11);
-    touchChin = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12);
-    humanDetection = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_4);
+
+    touchTopofHead = HAL_GPIO_ReadPin(TOUCH0_HEAD_GPIO_Port, TOUCH0_HEAD_Pin);
+    touchChin = HAL_GPIO_ReadPin(TOUCH1_MOUTH_GPIO_Port, TOUCH1_MOUTH_Pin);
+    touchBody = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12);
+    humanDetectionBackside = !(HAL_GPIO_ReadPin(Abdomen_GPIO_Port, Abdomen_Pin));
+    humanDetectionAbdomen = !(HAL_GPIO_ReadPin(Backside_GPIO_Port, Backside_Pin));
+
     Single_Key_Record(&touchTopofHead, &Last_touchTopofHead, &touchTopofHead_Downside, &touchTopofHead_Upside);
     Single_Key_Record(&touchChin, &Last_touchChin, &touchChin_Downside, &touchChin_Upside);
-    Single_Key_Record(&humanDetection, &Last_humanDetection, &humanDetection_Downside, &humanDetection_Upside);
+    Single_Key_Record(&touchBody, &Last_touchBody, &touchBody_Downside, &touchBody_Upside);
+    Single_Key_Record(&humanDetectionAbdomen, &Last_humanDetectionAbdomen, &humanDetectionAbdomen_Downside, &humanDetectionAbdomen_Upside);
+    Single_Key_Record(&humanDetectionBackside, &Last_humanDetectionBackside, &humanDetectionBackside_Downside, &humanDetectionBackside_Upside);
 }
 
-/*------------------------ º¯Êı¶¨Òå ------------------------*/
+void IOForChargingDownside(void)
+{
+    IOForCharging = USER_ADC.bat_charging;
+    Single_Key_Record(&IOForCharging, &Last_IOForCharging, &IOForCharging_Downside, &IOForCharging_Upside);
+}
+/*------------------------ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ------------------------*/
 
 /**
- * @brief ¼ÆËã¼òµ¥ºÍĞ£Ñé£¨16Î»£©
- * @param data ´ıĞ£ÑéÊı¾İÖ¸Õë
- * @param len Ğ£ÑéÊı¾İ³¤¶È£¨×Ö½ÚÊı£©
- * @return ¼ÆËãµÃµ½µÄ16Î»Ğ£ÑéÖµ
+ * @brief ï¿½ï¿½ï¿½ï¿½òµ¥ºï¿½Ğ£ï¿½é£¨16Î»ï¿½ï¿½
+ * @param data ï¿½ï¿½Ğ£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½
+ * @param len Ğ£ï¿½ï¿½ï¿½ï¿½ï¿½İ³ï¿½ï¿½È£ï¿½ï¿½Ö½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @return ï¿½ï¿½ï¿½ï¿½Ãµï¿½ï¿½ï¿½16Î»Ğ£ï¿½ï¿½Öµ
  */
 uint16_t Calculate_SumCheck(uint8_t *data, uint16_t len)
 {
@@ -73,126 +230,188 @@ uint16_t Calculate_SumCheck(uint8_t *data, uint16_t len)
     return sum;
 }
 
-// ====================== ¹¤×÷Ä£Ê½Ïà¹Øº¯Êı ======================
+// ====================== ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½Øºï¿½ï¿½ï¿½ ======================
 /**
- * @brief »ñÈ¡µ±Ç°¹¤×÷Ä£Ê½
- * @return ¹¤×÷Ä£Ê½Ã¶¾ÙÖµ
+ * @brief ï¿½ï¿½È¡ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½Ä£Ê½
+ * @return ï¿½ï¿½ï¿½ï¿½Ä£Ê½Ã¶ï¿½ï¿½Öµ
  */
 WorkMode Get_WorkMode(void)
 {
-	if(ActionNow == IDLE)
-    return MODE_IDLE;
-	else return MODE_ACTION;
+    if (ActionNow == IDLE)
+        return MODE_IDLE;
+    else
+        return MODE_ACTION;
+}
+
+uint8_t sevroErrorsum;
+uint8_t sevroErrorID;
+uint8_t sevroErrorNum;
+uint8_t sevroErrorPara()
+{
+    sevroErrorsum = 0;
+    for (uint8_t i = 1; i <= 12; i++)
+    {
+        if (SERVO[i].servoStatus != 0)
+        {
+            sevroErrorID = i;
+            sevroErrorsum++;
+        }
+    }
+    if (sevroErrorsum != 0)
+    {
+        sevroErrorNum = SERVO[sevroErrorID].servoStatus;
+    }
+    return sevroErrorNum;
 }
 
 /**
- * @brief »ñÈ¡µçÔ´µçÑ¹
- * @return µ±Ç°µçÑ¹Öµ£¨µ¥Î»£º·üÌØ£©
+ * @brief ï¿½ï¿½È¡ï¿½ï¿½Ô´ï¿½ï¿½Ñ¹
+ * @return ï¿½ï¿½Ç°ï¿½ï¿½Ñ¹Öµï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½
  */
 float Power_GetVoltage(void)
 {
-    // ÁÙÊ±·µ»Ø0µçÑ¹
-    return USER_ADC.bat_volt;
+    // ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½0ï¿½ï¿½Ñ¹
+    //    return USER_ADC.bat_volt;
+    return 0;
 }
 
 /**
- * @brief »ñÈ¡µç³ØµçÁ¿°Ù·Ö±È
- * @return µçÁ¿°Ù·Ö±È£¨0-100£©
+ * @brief ï¿½ï¿½È¡ï¿½ï¿½Øµï¿½ï¿½ï¿½ï¿½Ù·Ö±ï¿½
+ * @return ï¿½ï¿½ï¿½ï¿½ï¿½Ù·Ö±È£ï¿½0-100ï¿½ï¿½
  */
 uint8_t Get_BatteryLevel(void)
 {
-    // ÁÙÊ±·µ»Ø0%µçÁ¿
+    // ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½0%ï¿½ï¿½ï¿½ï¿½
     return USER_ADC.bat_power;
+    //	return 0;
 }
 
 /**
- * @brief ¼ì²â³äµç×´Ì¬
- * @return true:ÕıÔÚ³äµç false:Î´³äµç
+ * @brief ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬
+ * @return true:ï¿½ï¿½ï¿½Ú³ï¿½ï¿½ false:Î´ï¿½ï¿½ï¿½
  */
 bool Is_Charging(void)
 {
-    // ÁÙÊ±·µ»ØÎ´³äµç×´Ì¬
-    return false;
+    // ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½×´Ì¬
+    return USER_ADC.bat_charging;
 }
 
-/**
- * @brief »ñÈ¡ÏµÍ³×î¸ßÎÂ¶È
- * @return ×î¸ßÎÂ¶ÈÖµ£¨µ¥Î»£ºÉãÊÏ¶È£©
- */
-float Get_MaxTemperature(void)
+extern uint8_t poseNow;
+uint8_t Get_LastPandaPose(void)
 {
-    // ÁÙÊ±·µ»Ø0ÉãÊÏ¶È
-    return 0.0f;
+    if (poseNow == 1)
+        return 1;
+    else if (poseNow == 2 || poseNow == 3)
+        return 2;
+    else
+        return 3;
+}
+/**
+ * @brief ï¿½ï¿½È¡ÏµÍ³ï¿½ï¿½ï¿½ï¿½Â¶ï¿½
+ * @return ï¿½ï¿½ï¿½ï¿½Â¶ï¿½Öµï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ï¶È£ï¿½
+ */
+extern SERVO_INFO_TYPEDEF SERVO[14];
+int Get_MaxTemperature(void)
+{
+    float tempMax = 0;
+    for (uint8_t i = 1; i <= 12; i++)
+    {
+        if (SERVO[i].temper_read >= tempMax)
+            tempMax = SERVO[i].temper_read;
+    }
+    return tempMax;
 }
 
 /**
- * @brief »ñÈ¡µ±Ç°¾¯¸æ´úÂë
- * @return ¾¯¸æ´úÂë£¨0±íÊ¾ÎŞ¾¯¸æ£©
+ * @brief ï¿½ï¿½È¡ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @return ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë£¨0ï¿½ï¿½Ê¾ï¿½Ş¾ï¿½ï¿½æ£©
  */
 uint16_t Get_Warning(void)
 {
-    // ÁÙÊ±·µ»ØÎŞ¾¯¸æ
+    // ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Ş¾ï¿½ï¿½ï¿½
     return 0;
 }
 
+extern uint8_t poseNow;
 /**
- * @brief »ñÈ¡×î½ü´íÎó´úÂë
- * @return ´íÎó´úÂë£¨0±íÊ¾ÎŞ´íÎó£©
+ * @brief ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @return ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë£¨0ï¿½ï¿½Ê¾ï¿½Ş´ï¿½ï¿½ï¿½
  */
 uint16_t Get_LastError(void)
 {
-    // ÁÙÊ±·µ»ØÎŞ´íÎó
-    return 0;
+    uint8_t lasterror;
+    if (poseNow == 4)
+        lasterror = 1;
+    else
+        lasterror = 0;
+
+    // ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Ş´ï¿½ï¿½ï¿½
+    return lasterror;
 }
 
-// ====================== ´«¸ĞÆ÷Ïà¹Øº¯Êı ======================
+// ====================== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Øºï¿½ï¿½ï¿½ ======================
 /**
- * @brief »ñÈ¡´¥Ãş´«¸ĞÆ÷Öµ
- * @param touch_type ´¥ÃşÀàĞÍ£¨HEAD/BODY/CHIN£©
- * @return ´¥Ãş×´Ì¬£¨0/1 »ò ADCÔ­Ê¼Öµ£©
+ * @brief ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµ
+ * @param touch_type ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í£ï¿½HEAD/BODY/CHINï¿½ï¿½
+ * @return ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½0/1 ï¿½ï¿½ ADCÔ­Ê¼Öµï¿½ï¿½
  */
 uint8_t Get_TouchValue(TouchType touch_type)
 {
-    // ÁÙÊ±·µ»ØÎŞ´¥ÃşĞÅºÅ
-    (void)touch_type; // Ïû³ıÎ´Ê¹ÓÃ²ÎÊı¾¯¸æ
+    uint8_t value_Touch;
+    switch (touch_type)
+    {
+    case TOUCH_HEAD:
+        value_Touch = !touchTopofHead;
+        break;
+
+    case TOUCH_BODY:
+        value_Touch = !touchBody;
+        break;
+
+    case TOUCH_CHIN:
+        value_Touch = !touchChin;
+        break;
+    }
+    // ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Ş´ï¿½ï¿½ï¿½ï¿½Åºï¿½
+    //    (void)touch_type; // ï¿½ï¿½ï¿½ï¿½Î´Ê¹ï¿½Ã²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     return 0;
 }
 
 /**
- * @brief »ñÈ¡IMU·­¹ö½Ç
- * @return ·­¹ö½Ç¶È£¨µ¥Î»£º¶È£¬-180~180£©
+ * @brief ï¿½ï¿½È¡IMUï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @return ï¿½ï¿½ï¿½ï¿½ï¿½Ç¶È£ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½È£ï¿½-180~180ï¿½ï¿½
  */
 float IMU_GetRoll(void)
 {
-    // ÁÙÊ±·µ»Ø0¶Èºá¹ö½Ç
+    // ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½0ï¿½Èºï¿½ï¿½ï¿½ï¿½
     return 0.0f;
 }
 
 /**
- * @brief »ñÈ¡IMU¸©Ñö½Ç
- * @return ¸©Ñö½Ç¶È£¨µ¥Î»£º¶È£¬-90~90£©
+ * @brief ï¿½ï¿½È¡IMUï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @return ï¿½ï¿½ï¿½ï¿½ï¿½Ç¶È£ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½È£ï¿½-90~90ï¿½ï¿½
  */
 float IMU_GetPitch(void)
 {
-    // ÁÙÊ±·µ»Ø0¶È¸©Ñö½Ç
+    // ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½0ï¿½È¸ï¿½ï¿½ï¿½ï¿½ï¿½
     return 0.0f;
 }
 
 /**
- * @brief »ñÈ¡IMUÆ«º½½Ç
- * @return Æ«º½½Ç¶È£¨µ¥Î»£º¶È£¬0~360£©
+ * @brief ï¿½ï¿½È¡IMUÆ«ï¿½ï¿½ï¿½ï¿½
+ * @return Æ«ï¿½ï¿½ï¿½Ç¶È£ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½È£ï¿½0~360ï¿½ï¿½
  */
 float IMU_GetYaw(void)
 {
-    // ÁÙÊ±·µ»Ø0¶ÈÆ«º½½Ç
+    // ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½0ï¿½ï¿½Æ«ï¿½ï¿½ï¿½ï¿½
     return 0.0f;
 }
 
-/* ¾¯¸æ/´íÎó´úÂë×ª»»º¯ÊıÊ¾Àı */
+/* ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½ */
 /**
- * @brief ¾¯¸æ´úÂë×ª×Ö·û´®
- * @param code ¾¯¸æ´úÂë
- * @return ¿É¶ÁµÄ¾¯¸æÃèÊö
+ * @brief ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½Ö·ï¿½ï¿½ï¿½
+ * @param code ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @return ï¿½É¶ï¿½ï¿½Ä¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  */
 char *WarningCodeToString(uint16_t code)
 {
@@ -210,9 +429,9 @@ char *WarningCodeToString(uint16_t code)
 }
 
 /**
- * @brief ´íÎó´úÂë×ª×Ö·û´®
- * @param code ´íÎó´úÂë
- * @return ¿É¶ÁµÄ´íÎóÃèÊö
+ * @brief ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½Ö·ï¿½ï¿½ï¿½
+ * @param code ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @return ï¿½É¶ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  */
 char *ErrorCodeToString(uint16_t code)
 {
@@ -229,373 +448,944 @@ char *ErrorCodeToString(uint16_t code)
     }
 }
 
-
 uint8_t tx_buf_[136];
+uint8_t zeroBuf[136] = {0};
+extern uint8_t dma_done;
 /**
- * @brief ·¢ËÍ´«¸ĞÆ÷Êı¾İÏìÓ¦Ö¡
- * @param ph Ğ­Òé¾ä±úÖ¸Õë
- * @param data Òª·¢ËÍµÄJSONÊı¾İ×Ö·û´®
- * @param len JSONÊı¾İ³¤¶È
- * @note Ö¡½á¹¹£ºÖ¡Í·(2B) | ¹¦ÄÜÂë(1B) | Êı¾İ³¤¶È(2B) | JSONÊı¾İ(NB) | Ğ£ÑéºÍ(1B) | Ö¡Î²(2B)
+ * @brief ï¿½ï¿½ï¿½Í´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦Ö¡
+ * @param ph Ğ­ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½
+ * @param data Òªï¿½ï¿½ï¿½Íµï¿½JSONï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½
+ * @param len JSONï¿½ï¿½ï¿½İ³ï¿½ï¿½ï¿½
+ * @note Ö¡ï¿½á¹¹ï¿½ï¿½Ö¡Í·(2B) | ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(1B) | ï¿½ï¿½ï¿½İ³ï¿½ï¿½ï¿½(2B) | JSONï¿½ï¿½ï¿½ï¿½(NB) | Ğ£ï¿½ï¿½ï¿½(1B) | Ö¡Î²(2B)
  */
-void Send_Sensor_Data(ProtocolHandle *ph, const char *data, uint16_t len)
+uint8_t Send_Sensor_Data(ProtocolHandle *ph, const char *data, uint16_t len, uint8_t code)
 {
-    // Ğ£ÑéÊı¾İ³¤¶ÈºÏ·¨ĞÔ
-    if (len > MAX_DATA_LEN)
+    // Ğ£ï¿½ï¿½ï¿½ï¿½ï¿½İ³ï¿½ï¿½ÈºÏ·ï¿½ï¿½ï¿½
+    if (len > MAX_DATA_LEN + 8)
     {
-        return;
+        return 0;
     }
 
-    // ¹¹ÔìÍêÕûÊı¾İÖ¡£¨¶¯Ì¬¼ÆËãÖ¡³¤¶È£©
-//    uint8_t tx_buf[2 + 2 + 5 + len]; // Í·Ö¡Î²Ö¡4+¹¦ÄÜÂë1+Êı¾İ³¤¶È2+Ğ£Ñé1
-    uint16_t frame_len = 2+2+5+len;
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¡ï¿½ï¿½ï¿½ï¿½Ì¬ï¿½ï¿½ï¿½ï¿½Ö¡ï¿½ï¿½ï¿½È£ï¿½
+    //    uint8_t tx_buf[2 + 2 + 5 + len]; // Í·Ö¡Î²Ö¡4+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½1+ï¿½ï¿½ï¿½İ³ï¿½ï¿½ï¿½2+Ğ£ï¿½ï¿½1
+    uint16_t frame_len = 2 + 2 + 5 + len;
 
-    // Ö¡Í·£¨2×Ö½Ú£©
+    // Ö¡Í·ï¿½ï¿½2ï¿½Ö½Ú£ï¿½
     tx_buf_[0] = FRAME_HEADER_DOWN >> 8;
     tx_buf_[1] = FRAME_HEADER_DOWN & 0xFF;
 
-    // ¹¦ÄÜÂë£¨1×Ö½Ú£©
-    tx_buf_[2] = ph->current_cmd;
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ë£¨1ï¿½Ö½Ú£ï¿½
+    tx_buf_[2] = code;
 
-    // Êı¾İ³¤¶È£¨Ğ¡¶Ë¸ñÊ½£¬2×Ö½Ú£©
+    // ï¿½ï¿½ï¿½İ³ï¿½ï¿½È£ï¿½Ğ¡ï¿½Ë¸ï¿½Ê½ï¿½ï¿½2ï¿½Ö½Ú£ï¿½
     tx_buf_[3] = len & 0xFF;
     tx_buf_[4] = (len >> 8) & 0xFF;
 
-    // Êı¾İÄÚÈİ
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     memcpy(&tx_buf_[5], data, len);
 
-    // ¼ÆËãºÍĞ£Ñé£¨¹¦ÄÜÂë+³¤¶È+Êı¾İ£©
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Ğ£ï¿½é£¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½İ£ï¿½
     uint16_t checksum = Calculate_SumCheck(&tx_buf_[3], len);
     tx_buf_[5 + len] = checksum;
 
-    // Ö¡Î²£¨2×Ö½Ú£©
+    // Ö¡Î²ï¿½ï¿½2ï¿½Ö½Ú£ï¿½
     tx_buf_[6 + len] = FRAME_FOOTER_DOWN >> 8;
     tx_buf_[7 + len] = FRAME_FOOTER_DOWN & 0xFF;
 
-    // DMA·¢ËÍ
-    HAL_UART_Transmit_DMA(ph->huart, tx_buf_, 8 + len);
+    // DMAï¿½ï¿½ï¿½ï¿½
+    HAL_UART_Transmit(ph->huart, tx_buf_, 8 + len, 100);
+
+    return 1;
+    //	memcpy(tx_buf_, zeroBuf, 8+len);
 }
 
-/*------------------------ ¶æ»ú²ÎÊı»ñÈ¡º¯Êı ------------------------*/
+/*------------------------ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ ------------------------*/
 /**
- * @brief »ñÈ¡ËùÓĞ¶æ»ú²ÎÊı
- * @param params ¶æ»ú²ÎÊı½á¹¹ÌåÊı×é
- * @note SERVO[1]-SERVO[12] ¶ÔÓ¦ params[0]-params[11]
+ * @brief ï¿½ï¿½È¡ï¿½ï¿½ï¿½Ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @param params ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½á¹¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @note SERVO[1]-SERVO[12] ï¿½ï¿½Ó¦ params[0]-params[11]
  */
 void Servo_GetAllParams(SERVO_INFO_TYPEDEF *params)
 {
-    // SERVO[1]-SERVO[12] ¶ÔÓ¦ params[0]-params[11]
+    // SERVO[1]-SERVO[12] ï¿½ï¿½Ó¦ params[0]-params[11]
     for (int i = 0; i < 12; i++)
     {
-        params[i] = SERVO[i + 1]; // Êı×éË÷ÒıÆ«ÒÆ
+        params[i] = SERVO[i + 1]; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ«ï¿½ï¿½
     }
 }
 
 /**
- * @brief ·¢ËÍ±ê×¼ÏìÓ¦Ö¡
- * @param ph Ğ­Òé¾ä±úÖ¸Õë
- * @param result ÏìÓ¦½á¹ûÂë£¨0±íÊ¾³É¹¦£¬1±íÊ¾Ğ£ÑéÊ§°Ü£¬2±íÊ¾¿ªÊ¼Ö´ĞĞ£¬3±íÊ¾Ö´ĞĞÍê±Ï£©
- * @note Ö¡½á¹¹£ºBB BB | func | 01 00 | result | ºÍĞ£Ñé | ++ ++
+ * @brief ï¿½ï¿½ï¿½Í±ï¿½×¼ï¿½ï¿½Ó¦Ö¡
+ * @param ph Ğ­ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½
+ * @param result ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½ë£¨0ï¿½ï¿½Ê¾ï¿½É¹ï¿½ï¿½ï¿½1ï¿½ï¿½Ê¾Ğ£ï¿½ï¿½Ê§ï¿½Ü£ï¿½2ï¿½ï¿½Ê¾ï¿½ï¿½Ê¼Ö´ï¿½Ğ£ï¿½3ï¿½ï¿½Ê¾Ö´ï¿½ï¿½ï¿½ï¿½Ï£ï¿½
+ * @note Ö¡ï¿½á¹¹ï¿½ï¿½BB BB | func | 01 00 | result | ï¿½ï¿½Ğ£ï¿½ï¿½ | ++ ++
  */
 uint8_t _tx_buf_[10] = {0x42, 0x42, 0, 1, 0, 0, 0, 0, 0x2B, 0x2B};
 void Send_Response(ProtocolHandle *ph, uint8_t result)
 {
-//    uint8_t tx_buf[10] = {
-//        FRAME_HEADER_DOWN >> 8, FRAME_HEADER_DOWN & 0xFF, // Ö¡Í·BB BB
-//        ph->current_cmd,                                  // Ô­Ñù»Ø´«¹¦ÄÜÂë
-//        1, 0,                                             // Êı¾İ³¤¶ÈĞ¡¶Ë£¨¹Ì¶¨1×Ö½Ú£©
-//        result,                                           // ½á¹ûÂë
-//        0, 0,                                             // ºÍĞ£ÑéÕ¼Î»
-//        FRAME_FOOTER_DOWN >> 8, FRAME_FOOTER_DOWN & 0xFF  // Ö¡Î²++ ++
-//    };
-	_tx_buf_[2] = ph->current_cmd;
-	_tx_buf_[5] = result;
-    // ¼ÆËãĞ£ÑéºÍ£¨½ö¶ÔÊı¾İÄÚÈİĞ£Ñé£©
+    //    uint8_t tx_buf[10] = {
+    //        FRAME_HEADER_DOWN >> 8, FRAME_HEADER_DOWN & 0xFF, // Ö¡Í·BB BB
+    //        ph->current_cmd,                                  // Ô­ï¿½ï¿½ï¿½Ø´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    //        1, 0,                                             // ï¿½ï¿½ï¿½İ³ï¿½ï¿½ï¿½Ğ¡ï¿½Ë£ï¿½ï¿½Ì¶ï¿½1ï¿½Ö½Ú£ï¿½
+    //        result,                                           // ï¿½ï¿½ï¿½ï¿½ï¿½
+    //        0, 0,                                             // ï¿½ï¿½Ğ£ï¿½ï¿½Õ¼Î»
+    //        FRAME_FOOTER_DOWN >> 8, FRAME_FOOTER_DOWN & 0xFF  // Ö¡Î²++ ++
+    //    };
+    _tx_buf_[2] = ph->current_cmd;
+    _tx_buf_[5] = result;
+    // ï¿½ï¿½ï¿½ï¿½Ğ£ï¿½ï¿½Í£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ£ï¿½é£©
     uint16_t checksum = Calculate_SumCheck(&_tx_buf_[5], 1);
-    _tx_buf_[6] = checksum & 0xFF; // Ğ£ÑéµÍ×Ö½ÚÔÚÇ°
-    _tx_buf_[7] = checksum >> 8;   // ¸ß×Ö½ÚÔÚºó
+    _tx_buf_[6] = checksum & 0xFF; // Ğ£ï¿½ï¿½ï¿½ï¿½Ö½ï¿½ï¿½ï¿½Ç°
+    _tx_buf_[7] = checksum >> 8;   // ï¿½ï¿½ï¿½Ö½ï¿½ï¿½Úºï¿½
 
-    HAL_UART_Transmit_DMA(ph->huart, _tx_buf_, sizeof(_tx_buf_));
+    HAL_UART_Transmit(ph->huart, _tx_buf_, sizeof(_tx_buf_), 50);
 }
 
 void sendStateActive(ProtocolHandle *ph, WorkStatus status)
 {
-	/* »ñÈ¡ËùĞè×´Ì¬Êı¾İ */
-            status.voltage = Power_GetVoltage();       // µçÑ¹Öµ£¨float£©
-            status.battery_level = Get_BatteryLevel(); // µçÁ¿°Ù·Ö±È£¨0~100£©
-            status.is_charging = Is_Charging();         // ³äµç×´Ì¬
+    /* ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
+    status.mode = Get_WorkMode();              // ï¿½ï¿½ï¿½ï¿½Ä£Ê½
+    status.voltage = Power_GetVoltage();       // ï¿½ï¿½Ñ¹Öµï¿½ï¿½floatï¿½ï¿½
+    status.battery_level = Get_BatteryLevel(); // ï¿½ï¿½ï¿½ï¿½ï¿½Ù·Ö±È£ï¿½0~100ï¿½ï¿½
+    status.is_charging = Is_Charging();        // ï¿½ï¿½ï¿½×´Ì¬
+    status.error_code = Get_LastError();
+    status.posePanda = Get_LastPandaPose();
+    status.max_temp = Get_MaxTemperature();
+    status.tempBoard = (int)DS18B20.temper[1];
+    status.sevroerror = sevroErrorPara();
 
-        /* Éú³É¾«¼òµÄJSON¸ñÊ½×´Ì¬Êı¾İ */
-        char json_buf[128]; // ÊÊµ±´óĞ¡µÄ»º³åÇø
-        snprintf(json_buf, sizeof(json_buf),
-                 "{\"mode\":%d,\"voltage\":%.2f,\"battery\":\"%d%%\",\"charging\":%s}",
-                 status.mode,
-                 status.voltage,        // %.2f ±£ÁôÁ½Î»Ğ¡Êı
-                 status.battery_level,  // 
-                 status.is_charging ? "true" : "false");
-        
-        ph->cmd_state = CMD_RECEIVED;
-        
-        /* ·¢ËÍ×´Ì¬Êı¾İ */
-        Send_Sensor_Data(ph, json_buf, strlen(json_buf));
+    /* ï¿½ï¿½ï¿½É¾ï¿½ï¿½ï¿½ï¿½JSONï¿½ï¿½Ê½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
+    char json_buf[128]; // ï¿½Êµï¿½ï¿½ï¿½Ğ¡ï¿½Ä»ï¿½ï¿½ï¿½ï¿½ï¿½
+    snprintf(json_buf, sizeof(json_buf),
+             "{\"mode\":%d,\"battery\":%d,\"charging\":%s,\"error\":%d,\"pose\":%d,\"temp1\":%d,\"temp2\":%d,\"error2\":%d}",
+             status.mode,
+             status.battery_level, //
+             status.is_charging ? "true" : "false",
+             status.error_code,
+             status.posePanda,
+             status.max_temp,
+             status.tempBoard,
+             status.sevroerror);
+
+    ph->cmd_state = CMD_RECEIVED;
+
+    /* ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
+    Send_Sensor_Data(ph, json_buf, strlen(json_buf), 5);
 }
 
+void sendSensorActive(ProtocolHandle *ph, uint8_t head, uint8_t body, uint8_t chin, uint8_t abdomen, uint8_t backside)
+{
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    SensorData sensor = {
+        .head_touch = head,
+        .body_touch = body,
+        .chin_touch = chin,
+        .human_Abdomen = abdomen,
+        .human_Backside = backside};
+    //            .roll = IMU_GetRoll(),
+    //            .pitch = IMU_GetPitch(),
+    //            .yaw = IMU_GetYaw()};
+
+    // ×ªï¿½ï¿½ÎªJSONï¿½Ö·ï¿½ï¿½ï¿½
+    char json_buf[128];
+    snprintf(json_buf, sizeof(json_buf),
+             //                 "{\"touch\":[%u,%u,%u],\"pose\":[%.1f,%.1f,%.1f]}",
+             "{\"Head\":%d,\"Body\":%d,\"Chin\":%d,\"HA\":%d,\"HB\":%d}",
+             //		"{\"touch\":[%d,%d,%d]}",
+             sensor.head_touch, sensor.body_touch, sensor.chin_touch,
+             sensor.human_Abdomen, sensor.human_Backside);
+    ph->cmd_state = CMD_RECEIVED; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬
+                                  //        Send_Response(ph, ph->cmd_state); // ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½Õ³É¹ï¿½
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦Ö¡
+    Send_Sensor_Data(ph, json_buf, strlen(json_buf), 4);
+}
+
+///*Ó³ï¿½ï¿½id*/
+// void mappingID(uint16_t receivedID,uint16_t )
+//{
+//
+// }
+extern uint8_t PoweronAction;
+extern uint8_t actionPoseLast;
+extern uint8_t step_counter;
+extern uint8_t ifStartAct;
+extern uint8_t flag_sendCompleted;
+extern uint8_t flag_sendExecuting;
+extern uint8_t sendmodework;
+extern uint16_t actionSwitchTime;
+extern uint8_t actionNeedReturn;
+extern uint8_t releaseSevroFlag;
+extern uint8_t debugUse;
+uint8_t indexFortrulData;
+uint8_t actionFromemotion = 0;
+ProtocolFrame *frame;
 /**
- * @brief Ğ­Òé½âÎöÖ÷Âß¼­
- * @param ph Ğ­Òé¾ä±úÖ¸Õë
- * @note Ö´ĞĞË³Ğò£ºÖ¡½á¹¹Ğ£Ñé -> ºÍĞ£Ñé -> ¹¦ÄÜÂë·Ö·¢
+ * @brief Ğ­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß¼ï¿½
+ * @param ph Ğ­ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½
+ * @note Ö´ï¿½ï¿½Ë³ï¿½ï¿½Ö¡ï¿½á¹¹Ğ£ï¿½ï¿½ -> ï¿½ï¿½Ğ£ï¿½ï¿½ -> ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½
  */
 void Parse_Protocol(ProtocolHandle *ph)
 {
-    ProtocolFrame *frame = (ProtocolFrame *)ph->rx_buf[ph->buf_idx];
+    for (uint8_t i = 0; i < 30; i++)
+    {
+        if (ph->rx_buf[ph->buf_idx][i] == 0x41 && ph->rx_buf[ph->buf_idx][i + 1] == 0x41)
+        {
+            indexFortrulData = i;
+            break;
+        }
+        //		else
+    }
+    frame = (ProtocolFrame *)&ph->rx_buf[ph->buf_idx][indexFortrulData];
     frame->checksum = (frame->data[frame->data_len + 1] << 8) | frame->data[frame->data_len];
     frame->footer = *(uint16_t *)&frame->data[frame->data_len + 2];
 
-    // Çå¿ÕĞ£ÑéºÍ¼°Ö¡Î²ÇøÓò
-    for (int i = 0; i < 4; i++)
-        frame->data[frame->data_len + i] = 0;
+    // ï¿½ï¿½ï¿½Ğ£ï¿½ï¿½Í¼ï¿½Ö¡Î²ï¿½ï¿½ï¿½ï¿½
+    //    for (int i = 0; i < 4; i++)
+    //        frame->data[frame->data_len + i] = 0;
 
-    /* »ù´¡½á¹¹Ğ£Ñé */
-    if (frame->header != FRAME_HEADER_UP || // ÑéÖ¤ÉÏÎ»»úÖ¡Í·
-        frame->footer != FRAME_FOOTER_UP || // ÑéÖ¤ÉÏÎ»»úÖ¡Î²
-        frame->data_len > MAX_DATA_LEN)     // Êı¾İ³¤¶ÈºÏ·¨ĞÔ¼ì²é
+    /* ï¿½ï¿½ï¿½ï¿½ï¿½á¹¹Ğ£ï¿½ï¿½ */
+    if (frame->header != FRAME_HEADER_UP || // ï¿½ï¿½Ö¤ï¿½ï¿½Î»ï¿½ï¿½Ö¡Í·
+        frame->footer != FRAME_FOOTER_UP || // ï¿½ï¿½Ö¤ï¿½ï¿½Î»ï¿½ï¿½Ö¡Î²
+        frame->data_len > MAX_DATA_LEN)     // ï¿½ï¿½ï¿½İ³ï¿½ï¿½ÈºÏ·ï¿½ï¿½Ô¼ï¿½ï¿½
     {
         return;
     }
 
-    /* ºÍĞ£ÑéÑéÖ¤ */
+    /* ï¿½ï¿½Ğ£ï¿½ï¿½ï¿½ï¿½Ö¤ */
     uint16_t calc_sum = Calculate_SumCheck(frame->data, frame->data_len);
     if (calc_sum != frame->checksum)
     {
-        ph->cmd_state = CMD_CHECK_ERROR;  // ÉèÖÃĞ£Ñé´íÎó×´Ì¬
-        Send_Response(ph, ph->cmd_state); // ÏìÓ¦Ğ£ÑéÊ§°Ü
+        ph->cmd_state = CMD_CHECK_ERROR;  // ï¿½ï¿½ï¿½ï¿½Ğ£ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬
+        Send_Response(ph, ph->cmd_state); // ï¿½ï¿½Ó¦Ğ£ï¿½ï¿½Ê§ï¿½ï¿½
         return;
     }
 
-    TEACHMODE = 0;                 // Çå³ı½ÌÑ§Ä£Ê½±êÖ¾£¨ÈçÓĞ£©
-    ph->current_cmd = frame->func; // ¼ÇÂ¼µ±Ç°ÃüÁî¹¦ÄÜÂë
+    ph->current_cmd = frame->func; // ï¿½ï¿½Â¼ï¿½ï¿½Ç°ï¿½ï¿½ï¿½î¹¦ï¿½ï¿½ï¿½ï¿½
 
-    /* ¹¦ÄÜÂë·Ö·¢´¦Àí */
+    /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ */
     switch (frame->func)
     {
-    case 0x01: // ³èÎï×´Ì¬¿ØÖÆÃüÁî
+    case 0x01: // ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         if (frame->data_len == 2)
-        { // Ô¤ÆÚ2×Ö½ÚÊı¾İ
-            // ½âÎö×´Ì¬ºÍ³Ì¶ÈÖµ£¨Ê¾Àı£©
+        {
+            actionFromemotion = 1;
+            // ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½
+            ph->cmd_state = CMD_RECEIVED;
+            Send_Response(ph, ph->cmd_state); // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½Õ³É¹ï¿½
+                                              // Ô¤ï¿½ï¿½2ï¿½Ö½ï¿½ï¿½ï¿½ï¿½ï¿½
+            // ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½Í³Ì¶ï¿½Öµï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½
             uint8_t state = frame->data[0];
             uint8_t level = frame->data[1];
 
-            // ¸üĞÂ×´Ì¬»ú
-            ph->cmd_state = CMD_RECEIVED;
-            Send_Response(ph, ph->cmd_state); // Á¢¼´ÏìÓ¦½ÓÊÕ³É¹¦
+            //					// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+            //						srand((unsigned)time(NULL));
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+            int random_number = (rand() / 10) % 10;
+
+            // ï¿½ï¿½ï¿½ï¿½ï¿½Ğ¶ï¿½
+            switch (random_number)
+            {
+            case 0:
+            {
+                if (state == 1)
+                    ActionNow = IDLE;
+                else if (state == 2)
+                    ActionNow = IDLE;
+                else if (state == 3)
+                    ActionNow = IDLE;
+                else if (state == 4)
+                    ActionNow = IDLE;
+                else if (state == 5)
+                    ActionNow = IDLE;
+                else if (state == 6)
+                    ActionNow = IDLE;
+                else if (state == 7)
+                    ActionNow = IDLE;
+                else if (state == 8)
+                    ActionNow = IDLE;
+                else if (state == 9)
+                    ActionNow = IDLE;
+                break;
+            }
+            case 1:
+            {
+                if (state == 1)
+                    ActionNow = IDLE;
+                else if (state == 2)
+                    ActionNow = IDLE;
+                else if (state == 3)
+                    ActionNow = IDLE;
+                else if (state == 4)
+                    ActionNow = IDLE;
+                else if (state == 5)
+                    ActionNow = IDLE;
+                else if (state == 6)
+                    ActionNow = IDLE;
+                else if (state == 7)
+                    ActionNow = IDLE;
+                else if (state == 8)
+                    ActionNow = IDLE;
+                else if (state == 9)
+                    ActionNow = IDLE;
+                break;
+            }
+            case 2:
+            {
+                if (state == 1)
+                    ActionNow = IDLE;
+                else if (state == 2)
+                    ActionNow = IDLE;
+                else if (state == 3)
+                    ActionNow = IDLE;
+                else if (state == 4)
+                    ActionNow = IDLE;
+                else if (state == 5)
+                    ActionNow = IDLE;
+                else if (state == 6)
+                    ActionNow = IDLE;
+                else if (state == 7)
+                    ActionNow = IDLE;
+                else if (state == 8)
+                    ActionNow = IDLE;
+                else if (state == 9)
+                    ActionNow = IDLE;
+                break;
+            }
+            case 3:
+            {
+                if (state == 1)
+                    ActionNow = IDLE;
+                else if (state == 2)
+                    ActionNow = IDLE;
+                else if (state == 3)
+                    ActionNow = IDLE;
+                else if (state == 4)
+                    ActionNow = IDLE;
+                else if (state == 5)
+                    ActionNow = IDLE;
+                else if (state == 6)
+                    ActionNow = IDLE;
+                else if (state == 7)
+                    ActionNow = IDLE;
+                else if (state == 8)
+                    ActionNow = IDLE;
+                else if (state == 9)
+                    ActionNow = IDLE;
+                break;
+            }
+            case 4:
+            {
+                if (state == 1)
+                    ActionNow = IDLE;
+                else if (state == 2)
+                    ActionNow = IDLE;
+                else if (state == 3)
+                    ActionNow = IDLE;
+                else if (state == 4)
+                    ActionNow = IDLE;
+                else if (state == 5)
+                    ActionNow = IDLE;
+                else if (state == 6)
+                    ActionNow = IDLE;
+                else if (state == 7)
+                    ActionNow = IDLE;
+                else if (state == 8)
+                    ActionNow = IDLE;
+                else if (state == 9)
+                    ActionNow = IDLE;
+                break;
+            }
+                //						case 5:
+                //							{
+                //								if(state ==1)ActionNow = IDLE;
+                //								else if(state == 2)ActionNow = IDLE;
+                //								else if(state == 3)ActionNow = IDLE;
+                //								else if(state == 4)ActionNow = IDLE;
+                //								else if(state == 5)ActionNow = IDLE;
+                //								else if(state == 6)ActionNow = IDLE;
+                //								else if(state == 7)ActionNow = IDLE;
+                //								else if(state == 8)ActionNow = IDLE;
+                //								else if(state == 9)ActionNow = IDLE;
+                //								break;
+                //							}
+                //							case 6:
+                //							{
+                //								if(state ==1)ActionNow = IDLE;
+                //								else if(state == 2)ActionNow = IDLE;
+                //								else if(state == 3)ActionNow = IDLE;
+                //								else if(state == 4)ActionNow = IDLE;
+                //								else if(state == 5)ActionNow = IDLE;
+                //								else if(state == 6)ActionNow = IDLE;
+                //								else if(state == 7)ActionNow = IDLE;
+                //								else if(state == 8)ActionNow = IDLE;
+                //								else if(state == 9)ActionNow = IDLE;
+                //								break;
+                //							}
+                //							case 7:
+                //							{
+                //								if(state ==1)ActionNow = IDLE;
+                //								else if(state == 2)ActionNow = IDLE;
+                //								else if(state == 3)ActionNow = IDLE;
+                //								else if(state == 4)ActionNow = IDLE;
+                //								else if(state == 5)ActionNow = IDLE;
+                //								else if(state == 6)ActionNow = IDLE;
+                //								else if(state == 7)ActionNow = IDLE;
+                //								else if(state == 8)ActionNow = IDLE;
+                //								else if(state == 9)ActionNow = IDLE;
+                //								break;
+                //							}
+                //							case 8:
+                //							{
+                //								if(state ==1)ActionNow = IDLE;
+                //								else if(state == 2)ActionNow = IDLE;
+                //								else if(state == 3)ActionNow = IDLE;
+                //								else if(state == 4)ActionNow = IDLE;
+                //								else if(state == 5)ActionNow = IDLE;
+                //								else if(state == 6)ActionNow = IDLE;
+                //								else if(state == 7)ActionNow = IDLE;
+                //								else if(state == 8)ActionNow = IDLE;
+                //								else if(state == 9)ActionNow = IDLE;
+                //								break;
+                //							}
+                //							case 9:
+                //							{
+                //								if(state ==1)ActionNow = IDLE;
+                //								else if(state == 2)ActionNow = IDLE;
+                //								else if(state == 3)ActionNow = IDLE;
+                //								else if(state == 4)ActionNow = IDLE;
+                //								else if(state == 5)ActionNow = IDLE;
+                //								else if(state == 6)ActionNow = IDLE;
+                //								else if(state == 7)ActionNow = IDLE;
+                //								else if(state == 8)ActionNow = IDLE;
+                //								else if(state == 9)ActionNow = IDLE;
+                //								break;
+                //							}
+            }
         }
         break;
 
-    case 0x02: // ¶¯×÷¿â¿ØÖÆ
+    case 0x02: // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     {
-        // Ê×´ÎÏìÓ¦£¨½ÓÊÕ³É¹¦£©
+        //		releaseSevroFlag = 1;
+        actionFromemotion = 0;
+        TEACHMODE = 0; // ï¿½ï¿½ï¿½ï¿½ï¿½Ñ§Ä£Ê½ï¿½ï¿½Ö¾ï¿½ï¿½ï¿½ï¿½ï¿½Ğ£ï¿½
+        actionSwitchTime = ACTIONTIMESTEP;
+        actionNeedReturn = 0;
+        flag_sendExecuting = 0;
+        // ï¿½×´ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½ï¿½Õ³É¹ï¿½ï¿½ï¿½
+        //		if(debugUse >1)
         ph->cmd_state = CMD_RECEIVED;
         Send_Response(ph, ph->cmd_state);
 
-        // ½âÎö¶¯×÷±àºÅ£¨·¶Î§0-255£©
-        uint8_t action_id = frame->data[0];
-		
-		if(action_id == 255) 
-		{
-			actionStop = 1;
-		}
-//        // ÑéÖ¤¶¯×÷±àºÅÓĞĞ§ĞÔ£¨Ê¾Àı£ºÓĞĞ§·¶Î§0-121£©
-//        else if (action_id > 150)
-//        {
-//            ph->cmd_state = CMD_CHECK_ERROR;
-//            Send_Response(ph, ph->cmd_state);
-//            break;
-//        }
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½Î§0-255ï¿½ï¿½
+        uint16_t action_id = *(uint16_t *)&frame->data[0];
 
-		else
-		{
-			// ¸üĞÂ¶¯×÷¿ØÖÆ²ÎÊı
-			actionStop = 0;
-			ph->cmd_state = CMD_RECEIVED;
-			Send_Response(ph, ph->cmd_state); // ÔÙ´ÎÏìÓ¦
-			ActionNow = action_id;            // ÉèÖÃµ±Ç°¶¯×÷
-		}
-        break;
-    }
+        // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ§ï¿½Ô£ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ§ï¿½ï¿½Î§0-121ï¿½ï¿½
+        //        else if (action_id > 150)
+        //        {
+        //            ph->cmd_state = CMD_CHECK_ERROR;
+        //            Send_Response(ph, ph->cmd_state);
+        //            break;
+        //        }
+        actionPoseLast = poseCheck();
 
-    case 0x03: // ¹Ø½Ú¿ØÖÆÃüÁî
-        if (frame->data_len == 24)
-        { // 24×Ö½Ú¶ÔÓ¦12¸ö¹Ø½Ú
-            // ½âÎö¹Ø½Ú½Ç¶È£¨Ğ¡¶Ë¸ñÊ½£©
-            uint16_t angles[12];
-            for (int i = 0; i < 12; i++)
+        if (action_id == 255)
+        {
+            step_counter = 1;
+            PoweronAction = 0;
+            actionStop = 1;
+            ifStartAct = 0;
+            flag_sendCompleted = 0;
+            flag_sendExecuting = 0;
+            sendmodework = 0;
+            ActionNow = IDLE;
+            Send_Response(ph, 0x03); // ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦
+        }
+        else if (action_id == 254)
+        {
+            PoweronAction = 0;
+            actionStop = 0;
+            ph->cmd_state = CMD_RECEIVED;
+            Send_Response(ph, ph->cmd_state); // ï¿½Ù´ï¿½ï¿½ï¿½Ó¦
+            ActionNow = IDLE;
+        }
+        else if (action_id == 1)
+        {
+            PoweronAction = 0;
+            // ï¿½ï¿½ï¿½Â¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ²ï¿½ï¿½ï¿½
+            actionStop = 0;
+            ph->cmd_state = CMD_RECEIVED;
+            Send_Response(ph, ph->cmd_state); // ï¿½Ù´ï¿½ï¿½ï¿½Ó¦
+            step_counter = 1;
+            ActionNow = action_id; // ï¿½ï¿½ï¿½Ãµï¿½Ç°ï¿½ï¿½ï¿½ï¿½
+        }
+        else if (action_id == 253)
+        {
+            actionStop = 0;
+            if (showModeFlag == 0)
             {
-                angles[i] = frame->data[i * 2] | (frame->data[i * 2 + 1] << 8);
+                showModeFlag = 1;
+                ActionNow = actionINDEXForshow1[0];
             }
-            ph->cmd_state = CMD_RECEIVED;     // ÉèÖÃÃüÁî½ÓÊÕ×´Ì¬
-            Send_Response(ph, ph->cmd_state); // ÏìÓ¦½ÓÊÕ³É¹¦
+            //			if(PoweronAction == 0)
+            //			{
+            //				PoweronAction = 1;
+            //				ActionNow = actionINDEXForshow1[0];
+            //			}
+        }
+        //		else if(action_id == 2 ||action_id == 6||action_id == 26||action_id == 14||action_id == 23
+        //			||action_id == 196||action_id == 59||action_id == 211||action_id == 77||action_id == 83||action_id == 1)
+        else
+        {
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+            int random_number = (rand() / 10) % 5;
+            //			switch (random_number)
+            //			{
+            //				case 0:
+            //					action_id = 2;
+            //				break;
+            //				case 1:
+            //					action_id = 6;
+            //				break;
+            //				case 2:
+            //					action_id = 26;
+            //				break;
+            //				case 3:
+            //					action_id = 14;
+            //				break;
+            //				case 4:
+            //					action_id = 23;
+            //				break;
+            //				case 5:
+            //					action_id = 196;
+            //				break;
+            //				case 6:
+            //					action_id = 59;
+            //				break;
+            //				case 7:
+            //					action_id = 211;
+            //				break;
+            //				case 8:
+            //					action_id = 77;
+            //				break;
+            //				case 9:
+            //					action_id = 83;
+            //				break;
+            //			}
+            PoweronAction = 0;
+            // ï¿½ï¿½ï¿½Â¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ²ï¿½ï¿½ï¿½
+            actionStop = 0;
+            ph->cmd_state = CMD_RECEIVED;
+            Send_Response(ph, ph->cmd_state); // ï¿½Ù´ï¿½ï¿½ï¿½Ó¦
+            step_counter = 1;
+            ActionNow = action_id; // ï¿½ï¿½ï¿½Ãµï¿½Ç°ï¿½ï¿½ï¿½ï¿½
+                                   //			if()
         }
         break;
+    }
 
-    /*------ 0x04: ´«¸ĞÆ÷²éÑ¯ ------*/
+    case 0x03:                      // ï¿½Ø½Ú¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    {                               // 24ï¿½Ö½Ú¶ï¿½Ó¦12ï¿½ï¿½ï¿½Ø½ï¿½
+                                    // ï¿½ï¿½ï¿½ï¿½ï¿½Ø½Ú½Ç¶È£ï¿½Ğ¡ï¿½Ë¸ï¿½Ê½ï¿½ï¿½
+        if (frame->data[0] == 0x01) // Í·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+        {
+            float angHeadUse_Vertical;
+            float angHeadUse_Horizontal;
+            if (frame->data[1] == 0x00)
+                angHeadUse_Horizontal = frame->data[2];
+            else if (frame->data[1] == 0xff)
+                angHeadUse_Horizontal = -frame->data[2];
+
+            if (frame->data[3] == 0x00)
+                angHeadUse_Vertical = frame->data[4];
+            else if (frame->data[3] == 0xff)
+                angHeadUse_Vertical = -frame->data[4];
+            hand_angle(angHeadUse_Horizontal, angHeadUse_Vertical);
+        }
+        ph->cmd_state = CMD_RECEIVED;     // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬
+        Send_Response(ph, ph->cmd_state); // ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½Õ³É¹ï¿½
+    }
+    break;
+
+    /*------ 0x04: ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¯ ------*/
     case 0x04:
     {
-        // ´«¸ĞÆ÷Êı¾İ
+        ph->cmd_state = CMD_RECEIVED; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬
+                                      //        Send_Response(ph, ph->cmd_state); // ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½Õ³É¹ï¿½
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         SensorData sensor = {
-            .head_touch = Get_TouchValue(TOUCH_HEAD),
-            .body_touch = Get_TouchValue(TOUCH_BODY),
-            .chin_touch = Get_TouchValue(TOUCH_CHIN),
-            .roll = IMU_GetRoll(),
-            .pitch = IMU_GetPitch(),
-            .yaw = IMU_GetYaw()};
+            .head_touch = !touchTopofHead,
+            .body_touch = !touchBody,
+            .chin_touch = !touchChin,
+            .human_Abdomen = humanDetectionAbdomen,
+            .human_Backside = humanDetectionBackside};
 
-        // ×ª»»ÎªJSON×Ö·û´®
+        // ×ªï¿½ï¿½ÎªJSONï¿½Ö·ï¿½ï¿½ï¿½
         char json_buf[128];
         snprintf(json_buf, sizeof(json_buf),
-                 "{\"touch\":[%u,%u,%u],\"pose\":[%.1f,%.1f,%.1f]}",
+                 "{\"Head\":%d,\"Body\":%d,\"Chin\":%d,\"HA\":%d,\"HB\":%d}",
                  sensor.head_touch, sensor.body_touch, sensor.chin_touch,
-                 sensor.roll, sensor.pitch, sensor.yaw);
-        ph->cmd_state = CMD_RECEIVED;     // ÉèÖÃÃüÁî½ÓÊÕ×´Ì¬
-        Send_Response(ph, ph->cmd_state); // ÏìÓ¦½ÓÊÕ³É¹¦
-        // ·¢ËÍÏìÓ¦Ö¡
-        Send_Sensor_Data(ph, json_buf, strlen(json_buf));
+                 sensor.human_Abdomen, sensor.human_Backside);
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦Ö¡
+        Send_Sensor_Data(ph, json_buf, strlen(json_buf), 4);
         break;
     }
 
-    /*------ 0x05: ¹¤×÷×´Ì¬²éÑ¯ ------*/
-	case 0x05:
+    /*------ 0x05: ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½Ñ¯ ------*/
+    case 0x05:
     {
-        /* »ñÈ¡ËùĞè×´Ì¬Êı¾İ */
+        /* ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
         WorkStatus status = {
-            .mode = Get_WorkMode(),              // ¹¤×÷Ä£Ê½
-            .voltage = Power_GetVoltage(),       // µçÑ¹Öµ£¨float£©
-            .battery_level = Get_BatteryLevel(), // µçÁ¿°Ù·Ö±È£¨0~100£©
-            .is_charging = Is_Charging()         // ³äµç×´Ì¬
+            .mode = Get_WorkMode(),              // ï¿½ï¿½ï¿½ï¿½Ä£Ê½
+            .voltage = Power_GetVoltage(),       // ï¿½ï¿½Ñ¹Öµï¿½ï¿½floatï¿½ï¿½
+            .battery_level = Get_BatteryLevel(), // ï¿½ï¿½ï¿½ï¿½ï¿½Ù·Ö±È£ï¿½0~100ï¿½ï¿½
+            .is_charging = Is_Charging(),        // ï¿½ï¿½ï¿½×´Ì¬
+            .error_code = Get_LastError(),
+            .posePanda = Get_LastPandaPose(),
+            .max_temp = Get_MaxTemperature(),
+            .tempBoard = (int)DS18B20.temper[1],
+            .sevroerror = sevroErrorPara(),
         };
 
-        /* Éú³É¾«¼òµÄJSON¸ñÊ½×´Ì¬Êı¾İ */
-        char json_buf[128]; // ÊÊµ±´óĞ¡µÄ»º³åÇø
+        /* ï¿½ï¿½ï¿½É¾ï¿½ï¿½ï¿½ï¿½JSONï¿½ï¿½Ê½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
+        char json_buf[128]; // ï¿½Êµï¿½ï¿½ï¿½Ğ¡ï¿½Ä»ï¿½ï¿½ï¿½ï¿½ï¿½
         snprintf(json_buf, sizeof(json_buf),
-                 "{\"mode\":%d,\"voltage\":%.2f,\"battery\":\"%d%%\",\"charging\":%s}",
+                 "{\"mode\":%d,\"battery\":%d,\"charging\":%s,\"error\":%d,\"pose\":%d,\"temp1\":%d,\"temp2\":%d,\"error2\":%d}",
                  status.mode,
-                 status.voltage,        // %.2f ±£ÁôÁ½Î»Ğ¡Êı
-                 status.battery_level,  // 
-                 status.is_charging ? "true" : "false");
-        
-        ph->cmd_state = CMD_RECEIVED;
-        
-        /* ·¢ËÍ×´Ì¬Êı¾İ */
-        Send_Sensor_Data(ph, json_buf, strlen(json_buf));
-        break;
-    }
-	
+                 status.battery_level, //
+                 status.is_charging ? "true" : "false",
+                 status.error_code,
+                 status.posePanda,
+                 status.max_temp,
+                 status.tempBoard,
+                 status.sevroerror);
 
-    default:                     // Î´Öª¹¦ÄÜÂë
-        Send_Response(ph, 0x01); // ÏìÓ¦Ğ£ÑéÊ§°Ü
+        ph->cmd_state = CMD_RECEIVED;
+
+        /* ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
+        Send_Sensor_Data(ph, json_buf, strlen(json_buf), 5);
         break;
     }
+
+    case 0x06:
+    {
+        ph->cmd_state = CMD_RECEIVED;
+        //        Send_Response(ph, ph->cmd_state); // ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½Õ³É¹ï¿½
+        /* ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
+        sevroParameter paraSevro_t = {
+            .headHorizontalAng = getHorizontalAng(),
+            .headVerticalAng = getVerticalAng()};
+
+        /* ï¿½ï¿½ï¿½É¾ï¿½ï¿½ï¿½ï¿½JSONï¿½ï¿½Ê½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
+        char json_buf[128]; // ï¿½Êµï¿½ï¿½ï¿½Ğ¡ï¿½Ä»ï¿½ï¿½ï¿½ï¿½ï¿½
+        snprintf(json_buf, sizeof(json_buf),
+                 "[{\"Type\":\"Head\",\"AngleX\":\"%d\",\"AngleY\":\"%d\"}]",
+                 (int)paraSevro_t.headHorizontalAng, (int)paraSevro_t.headVerticalAng);
+
+        /* ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
+        Send_Sensor_Data(ph, json_buf, strlen(json_buf), 6);
+        break;
+    }
+
+    case 0x07:
+    {
+        //		ph->cmd_state = CMD_RECEIVED;
+        //        Send_Response(ph, ph->cmd_state); // ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½Õ³É¹ï¿½
+
+        /* ï¿½ï¿½ï¿½É¾ï¿½ï¿½ï¿½ï¿½JSONï¿½ï¿½Ê½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
+        char json_buff[128]; // ï¿½Êµï¿½ï¿½ï¿½Ğ¡ï¿½Ä»ï¿½ï¿½ï¿½ï¿½ï¿½
+        snprintf(json_buff, sizeof(json_buff),
+                 "{\"V\":\"%d.%d.%d\"}", 3, 12, 2);
+        /* ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ */
+        Send_Sensor_Data(ph, json_buff, strlen(json_buff), 7);
+        break;
+    }
+
+    case 0x08:
+    {
+        ph->cmd_state = CMD_RECEIVED;
+        Send_Response(ph, ph->cmd_state); // ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½Õ³É¹ï¿½
+
+        FLASH_Write(0x080Eff00, flagForUpdate, 8);
+        JumpToApp(0x08000000);
+
+        break;
+    }
+
+    case 0x0A:
+    {
+        ph->cmd_state = CMD_RECEIVED;
+        Send_Response(ph, ph->cmd_state); // ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½Õ³É¹ï¿½
+                                          /* ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ */
+        powerState_t = frame->data[0];
+
+        switch (powerState_t)
+        {
+        case hibernate: // ï¿½ï¿½ï¿½ï¿½
+
+            break;
+
+        case wakeup:                                                                                     // ï¿½ï¿½ï¿½ï¿½
+            HAL_GPIO_WritePin(upperComputerPower_5V_GPIO_Port, upperComputerPower_5V_Pin, GPIO_PIN_SET); //
+            HAL_GPIO_WritePin(Servo_Power_12V_GPIO_Port, Servo_Power_12V_Pin, GPIO_PIN_SET);             // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+            break;
+
+        case Shutdown:                                                                                     // ï¿½Ø»ï¿½
+            HAL_GPIO_WritePin(upperComputerPower_5V_GPIO_Port, upperComputerPower_5V_Pin, GPIO_PIN_RESET); //
+            HAL_GPIO_WritePin(Servo_Power_12V_GPIO_Port, Servo_Power_12V_Pin, GPIO_PIN_RESET);             // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+            break;
+        case ActionReset:
+            TEACHMODE = 0;
+            ActionNow = IDLE;
+            actionNeedReturn = 0;
+            step_counter = 1;
+            break;
+        default:
+            break;
+        }
+
+        break;
+    }
+
+    default:                     // Î´Öªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+        Send_Response(ph, 0x01); // ï¿½ï¿½Ó¦Ğ£ï¿½ï¿½Ê§ï¿½ï¿½
+        break;
+    }
+
+    //	for (int i = 0; iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 }
 
 /**
- * @brief ·¢ËÍ¶æ»ú²ÎÊıĞÅÏ¢
- * @note Ö÷¶¯ÉÏ±¨ËùÓĞ¶æ»ú²ÎÊı£¬JSONÊı×é¸ñÊ½
+ * @brief ï¿½ï¿½ï¿½Í¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢
+ * @note ï¿½ï¿½ï¿½ï¿½ï¿½Ï±ï¿½ï¿½ï¿½ï¿½Ğ¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½JSONï¿½ï¿½ï¿½ï¿½ï¿½Ê½
  */
 void sendServoParameters(void)
 {
     SERVO_INFO_TYPEDEF params[12];
-    Servo_GetAllParams(params); // »ñÈ¡¶æ»ú²ÎÊı
+    Servo_GetAllParams(params); // ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
-    // ¹¹ÔìJSONÊı×é
+    // ï¿½ï¿½ï¿½ï¿½JSONï¿½ï¿½ï¿½ï¿½
     char json_buf[128];
     char *ptr = json_buf;
 
-    // ÆğÊ¼±ê¼Ç
+    // ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½
     ptr += sprintf(ptr, "[");
 
-    // ±éÀúËùÓĞ¶æ»ú
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ¶ï¿½ï¿½
     for (int i = 0; i < 12; i++)
     {
-        /* ²ÎÊıËµÃ÷£º
-           i+1        - ¶æ»úÎïÀí±àºÅ£¨SERVO[1]¶ÔÓ¦¶æ»ú1£©
-           pos_read   - ¶æ»úÎ»ÖÃ£¨int16_t£©
-           speed_read - ¶æ»úËÙ¶È£¨uint16_t£©
-           temper_read- ¶æ»úÎÂ¶È£¨uint16_t£© */
+        /* ï¿½ï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½
+           i+1        - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å£ï¿½SERVO[1]ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½1ï¿½ï¿½
+           pos_read   - ï¿½ï¿½ï¿½Î»ï¿½Ã£ï¿½int16_tï¿½ï¿½
+           speed_read - ï¿½ï¿½ï¿½ï¿½Ù¶È£ï¿½uint16_tï¿½ï¿½
+           temper_read- ï¿½ï¿½ï¿½ï¿½Â¶È£ï¿½uint16_tï¿½ï¿½ */
         ptr += sprintf(ptr,
                        "{\"id\":%d,\"pos\":%d,\"speed\":%u,\"temp\":%u}%c",
-                       i + 1,                 // ¶æ»úÎïÀí±àºÅ´Ó1¿ªÊ¼
-                       params[i].pos_read,    // Î»ÖÃ²ÎÊı
-                       params[i].speed_read,  // ËÙ¶È²ÎÊı
-                       params[i].temper_read, // ÎÂ¶È²ÎÊı
-                       (i == 11) ? ']' : ','  // Êı×é±ÕºÏ±ê¼Ç
+                       i + 1,                 // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å´ï¿½1ï¿½ï¿½Ê¼
+                       params[i].pos_read,    // Î»ï¿½Ã²ï¿½ï¿½ï¿½
+                       params[i].speed_read,  // ï¿½Ù¶È²ï¿½ï¿½ï¿½
+                       params[i].temper_read, // ï¿½Â¶È²ï¿½ï¿½ï¿½
+                       (i == 11) ? ']' : ','  // ï¿½ï¿½ï¿½ï¿½ÕºÏ±ï¿½ï¿½
         );
     }
-    ph.current_cmd = 0x06; // ÉèÖÃµ±Ç°ÃüÁî¹¦ÄÜÂë
-    // ´¥·¢Ö÷¶¯ÉÏ±¨£¨´ø³¤¶ÈĞ£Ñé£©
-    Send_Sensor_Data(&ph, json_buf, ptr - json_buf);
+    ph.current_cmd = 0x06; // ï¿½ï¿½ï¿½Ãµï¿½Ç°ï¿½ï¿½ï¿½î¹¦ï¿½ï¿½ï¿½ï¿½
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ£ï¿½é£©
+    Send_Sensor_Data(&ph, json_buf, ptr - json_buf, 6);
 }
 
 /**
- * @brief ¿ÕÏĞÖĞ¶Ï´¦Àíº¯Êı
- * @note ÓÉÓ²¼şÖĞ¶Ï´¥·¢£¬Íê³ÉDMA½ÓÊÕ¹ÜÀí
+ * @brief HAL UART IDLE Event Callback (triggered by HAL_UARTEx_ReceiveToIdle_DMA)
+ * @note  DMA CIRCULAR keeps running in background; only copies data & triggers parsing
  */
+static uint16_t rx_total_last = 0;
+
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+    if (huart != ph.huart)
+        return;
+    if (HAL_UARTEx_GetRxEventType(huart) != HAL_UART_RXEVENT_IDLE)
+        return;
+
+    const uint16_t BUF_SIZE = MAX_DATA_LEN + 9;
+
+    uint16_t new_bytes;
+    if (Size >= rx_total_last)
+        new_bytes = Size - rx_total_last;
+    else
+        new_bytes = (BUF_SIZE - rx_total_last) + Size;
+
+    rx_total_last = Size;
+
+    if (new_bytes == 0 || new_bytes > BUF_SIZE)
+        return;
+
+    uint16_t src_start = ((Size - new_bytes) % BUF_SIZE);
+    uint8_t *dst = ph.rx_buf[1];
+    for (uint16_t i = 0; i < new_bytes; i++)
+    {
+        dst[i] = ph.rx_buf[0][(src_start + i) % BUF_SIZE];
+    }
+
+    ph.buf_idx = 1;
+    Parse_Protocol(&ph);
+    ph.buf_idx = 0;
+}
+
+/**
+ * @brief UART IRQ handler (stub kept for compatibility)
+ * @note  HAL_UARTEx_ReceiveToIdle_DMA handles IDLE via HAL_UART_IRQHandler.
+ *        This function is a no-op; kept only for stm32h7xx_it.c call site.
+ */
+uint8_t zero[MAX_DATA_LEN + 9] = {};
 void User_Communication_IRQHandler(void)
 {
-    if (__HAL_UART_GET_FLAG(ph.huart, UART_FLAG_IDLE))
-    {
-        // Çå³ı¿ÕÏĞÖĞ¶Ï±êÖ¾
-        __HAL_UART_CLEAR_IDLEFLAG(ph.huart);
-
-        // Í£Ö¹µ±Ç°DMA´«Êä
-        HAL_UART_DMAStop(ph.huart);
-
-        // ¼ÆËãÊµ¼Ê½ÓÊÕ³¤¶È
-        uint16_t len = MAX_DATA_LEN + 9 - __HAL_DMA_GET_COUNTER(ph.hdma);
-
-        // ÇĞ»»»º³åÇø²¢¸´ÖÆÊı¾İ
-        memcpy(ph.rx_buf[ph.buf_idx ^ 1], ph.rx_buf[ph.buf_idx], len);
-        ph.buf_idx ^= 1; // ÇĞ»»»º³åË÷Òı
-
-        // Ìá½»Ğ­Òé½âÎöÈÎÎñ
-        Parse_Protocol(&ph);
-
-        // ÖØÆôDMA½ÓÊÕ£¨Ê¹ÓÃµ±Ç°»î¶¯»º³åÇø£©
-        HAL_UART_Receive_DMA(ph.huart, ph.rx_buf[ph.buf_idx], MAX_DATA_LEN + 9);
-    }
+    // HAL_UARTEx_ReceiveToIdle_DMA handles IDLE automatically
 }
 
-/**
- * @brief ÃüÁî×´Ì¬»ú´¦Àí£¨Ö÷Ñ­»·µ÷ÓÃ£©
- * @param ph Ğ­Òé¾ä±úÖ¸Õë
- * @note ´¦Àí¶à½×¶ÎÏìÓ¦£¨½ÓÊÕ->Ö´ĞĞ->Íê³É£©
- */
 void Process_Cmd_State(ProtocolHandle *ph)
 {
-    static uint32_t tick = 0; // ¼ÆÊ±»ù×¼
+    static uint32_t tick = 0; // ï¿½ï¿½Ê±ï¿½ï¿½×¼
 
     switch (ph->cmd_state)
     {
-    case CMD_RECEIVED: // ÒÑ½ÓÊÕ´ıÖ´ĞĞ
+    case CMD_RECEIVED: // ï¿½Ñ½ï¿½ï¿½Õ´ï¿½Ö´ï¿½ï¿½
         if (HAL_GetTick() - tick > 100)
         {
-            Send_Response(ph, 0x02); // ·¢ËÍ¿ªÊ¼Ö´ĞĞÏìÓ¦
+            Send_Response(ph, 0x02); // ï¿½ï¿½ï¿½Í¿ï¿½Ê¼Ö´ï¿½ï¿½ï¿½ï¿½Ó¦
             ph->cmd_state = CMD_EXECUTING;
-            tick = HAL_GetTick(); // ÖØÖÃ¼ÆÊ±
+            tick = HAL_GetTick(); // ï¿½ï¿½ï¿½Ã¼ï¿½Ê±
         }
         break;
 
-    case CMD_EXECUTING: // Ö´ĞĞÖĞ
+    case CMD_EXECUTING: // Ö´ï¿½ï¿½ï¿½ï¿½
         if (HAL_GetTick() - tick > 1000)
         {
-            Send_Response(ph, 0x03); // ·¢ËÍÖ´ĞĞÍê³ÉÏìÓ¦
+            Send_Response(ph, 0x03); // ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦
             ph->cmd_state = CMD_COMPLETED;
         }
         break;
 
-    case CMD_COMPLETED: // Ö´ĞĞÍê³É
-        // ¿ÉÔÚ´ËÌí¼Ó×´Ì¬ÇåÀíÂß¼­
+    case CMD_COMPLETED: // Ö´ï¿½ï¿½ï¿½ï¿½ï¿½
+        // ï¿½ï¿½ï¿½Ú´ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ï¿½ß¼ï¿½
         break;
 
     default:
         break;
     }
+}
+// uint8_t UPDATE[6] = {'U', 'P', 'D', 'A', 'T', 'E'};
+// void User_UsartDataParas(USART_SERVO_TYPEDEF* p_usart_servo_x)
+//{
+////	if(memcmp(USART_ONE.usart_rx_buf,UPDATE,6) == 0)
+////	{
+////		UPDATE_STATE = 1;
+////		HAL_UART_Transmit(&huart7, (uint8_t*)"HELLO: this is JUMP!\r\n", 23, 100);
+////		FLASH_Write(0x080Eff00,flagForUpdate,8);
+////		JumpToApp(0x08000000);
+////	}
+////	if(USART_ONE.usart_rx_buf[0] == '!' && USART_ONE.usart_rx_buf[1] == '!')
+////	{
+////
+////
+////	}
+//}
+
+/* ï¿½Ã»ï¿½Ğ­ï¿½é£º! ? | Ang0_L Ang0_H ï¿½ï¿½ Ang11_L Ang11_H | CheckSum */
+#define SERVO_FRAME_LEN 27 /* 2+24+1 */
+#define SERVO_ANGLE_NUM 12
+
+/* È«ï¿½ï¿½Ä¿ï¿½ï¿½Ç¶È»ï¿½ï¿½æ£¨ï¿½ï¿½Î» 1ï¿½ã£¬-180~+180ï¿½ï¿½ */
+int16_t gServoTargetAngle[SERVO_ANGLE_NUM];
+int16_t gServoTargetPos[SERVO_ANGLE_NUM]; //-288/////-356
+// int16_t gServoTargetMid[SERVO_ANGLE_NUM] = {-269, -167, -163, -180, -172, -103, -196, -157, -132, -166,0,0};
+int16_t gServoTargetMid[SERVO_ANGLE_NUM] = {-350, -300, -150, -110, -170, -30, -60, -175, -210, -169, -90, 8};
+int16_t gServoTargetMin[SERVO_ANGLE_NUM] = {-1480, -1300, -1080, 0, -1400, 30, 0, 16, -1300, 90, -2040, -50};
+int16_t gServoTargetMax[SERVO_ANGLE_NUM] = {0, 0, 10, 1300, -130, 1480, 1300, 1100, 0, 1400, 0, 460};
+int16_t gangGetFromF1[SERVO_ANGLE_NUM];
+/* ï¿½ï¿½ï¿½ï¿½ 24 byte ï¿½Ç¶ï¿½ï¿½ï¿½ï¿½İµï¿½ï¿½Û¼ÓºÍ£ï¿½ï¿½ï¿½ 16 bitï¿½ï¿½ */
+static uint16_t calc_sum_24B(uint8_t *p)
+{
+    uint16_t s = 0;
+    for (uint8_t i = 0; i < 24; i++)
+        s += p[i];
+    return s;
+}
+
+int count_peopleTeach;
+extern uint8_t personTeachFlag;
+/* ï¿½ï¿½ USART7 IDLE ï¿½Ğ¶ï¿½ï¿½ï±»ï¿½ï¿½ï¿½ï¿½ */
+void User_UsartDataParas(USART_SERVO_TYPEDEF *p)
+{
+    /* ï¿½ï¿½ï¿½È²ï¿½ï¿½ï¿½Ö±ï¿½Ó¶ï¿½ï¿½ï¿½ */
+    //    if (p->rx_data_len != SERVO_FRAME_LEN) return;
+
+    uint8_t *buf = (uint8_t *)p->usart_rx_buf;
+
+    uint16_t sum;
+    uint8_t ck;
+    /* Ö¡Í·ï¿½ï¿½ï¿½ */
+    for (uint8_t j = 0; j < 27; j++)
+    {
+        if (buf[j] == 'a' && buf[j + 1] == 'b' && buf[j + 26] == 'c')
+        {
+            //			/* Ğ£ï¿½ï¿½ï¿½ï¿½ï¿½Ö¤ */
+            //			uint16_t sum = calc_sum_24B(&buf[j+2]);          /* Ö»ï¿½ï¿½ 24 byte ï¿½Ç¶ï¿½ï¿½ï¿½ï¿½ */
+            //			uint8_t  ck    = sum & 0xFF;
+            //    uint8_t  ckInv = (~ck) & 0xFF;
+            //    if (buf[26] != ck || buf[27] != ckInv) return; /* Ğ£ï¿½ï¿½Ê§ï¿½ï¿½Ö±ï¿½Ó¶ï¿½ï¿½ï¿½ */
+            //			if (buf[j+26] != ck ) return; /* Ğ£ï¿½ï¿½Ê§ï¿½ï¿½Ö±ï¿½Ó¶ï¿½ï¿½ï¿½ */
+            /* ï¿½ï¿½ï¿½ï¿½ 12 ï¿½ï¿½ 16-bit Ğ¡ï¿½Ë½Ç¶ï¿½ ï¿½ï¿½ Ğ´ï¿½ï¿½È«ï¿½ï¿½Ä¿ï¿½ï¿½ */
+            for (uint8_t i = 0; i < SERVO_ANGLE_NUM - 2; i++)
+            {
+                int16_t ang = (int16_t)(buf[j + 2 + i * 2] | (buf[j + 3 + i * 2] << 8));
+                //				int16_t ang = buf[j+2 + i];
+                gangGetFromF1[i] = ang;
+                gServoTargetAngle[i] = ang + gServoTargetMid[i]; /* ï¿½ï¿½Î» 1ï¿½ï¿½ */
+                gServoTargetPos[i] = (gServoTargetAngle[i] * 4096 / 360);
+            }
+
+            int16_t ang_11 = (int16_t)(buf[j + 2 + 11 * 2] | (buf[j + 3 + 11 * 2] << 8));
+            //				int16_t ang = buf[j+2 + i];
+            gangGetFromF1[10] = ang_11;
+            gServoTargetAngle[10] = ang_11 + gServoTargetMid[10]; /* ï¿½ï¿½Î» 1ï¿½ï¿½ */
+            gServoTargetPos[10] = (gServoTargetAngle[10] * 4096 / 360);
+
+            int16_t ang_12 = -(int16_t)(buf[j + 2 + 10 * 2] | (buf[j + 3 + 10 * 2] << 8));
+            //				int16_t ang = buf[j+2 + i];
+            gangGetFromF1[11] = ang_12;
+            gServoTargetAngle[11] = ang_12 + gServoTargetMid[11]; /* ï¿½ï¿½Î» 1ï¿½ï¿½ */
+            gServoTargetPos[11] = (gServoTargetAngle[11] * 4096 / 360);
+
+            count_peopleTeach = 40;
+            //			personTeachFlag = 1;
+            break;
+        }
+    }
+
+    for (uint8_t i = 0; i < SERVO_ANGLE_NUM; i++)
+    {
+        gServoTargetPos[i] = SEVRO_POS_CLAMP(gServoTargetPos[i], gServoTargetMin[i], gServoTargetMax[i]);
+    }
+    if (personTeachFlag == 1)
+    {
+        for (uint8_t i = 0; i < 10; i++)
+        {
+            goal_pos[i + 1] = gServoTargetPos[i];
+        }
+    }
+}
+
+// ï¿½ï¿½ï¿½Ú¿ï¿½ï¿½ï¿½ï¿½Ğ¶Ï½ï¿½ï¿½ï¿½
+void User_Usart7_IRQHandler(void)
+{
+//    if (RESET != __HAL_UART_GET_FLAG(USART_ONE.p_usart_n, UART_FLAG_IDLE)) // ï¿½ï¿½ï¿½UARTï¿½Ä¿ï¿½ï¿½ï¿½ï¿½Ğ¶Ï±ï¿½Ö¾Î»ï¿½Ç·ï¿½ï¿½ï¿½Î»
+//    {
+//        __HAL_UART_CLEAR_IDLEFLAG(USART_ONE.p_usart_n);                                                   // ï¿½ï¿½ï¿½ï¿½Ğ¶Ï±ï¿½Ö¾Î»ï¿½ï¿½ï¿½ï¿½Ö¹ï¿½Ø¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ¶ï¿½
+//        HAL_UART_DMAStop(USART_ONE.p_usart_n);                                                            // ï¿½ï¿½Ö¹ï¿½ï¿½Ç°DMAï¿½ï¿½ï¿½ä£¬È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½İ³ï¿½ï¿½È£ï¿½ï¿½ï¿½×¼È·ï¿½ï¿½
+//        USART_ONE.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_ONE.p_hdma_usart_n_rx); // ï¿½ï¿½ï¿½ï¿½Êµï¿½Ê½ï¿½ï¿½Õ³ï¿½ï¿½ï¿½
+//        if (__HAL_DMA_GET_COUNTER(USART_ONE.p_hdma_usart_n_rx) == USART_SERVO_RX_SIZE)
+//            USART_ONE.rx_data_len = USART_SERVO_RX_SIZE;
+//        User_UsartDataParas(&USART_ONE);                                                                   // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+//        HAL_UART_Receive_DMA(USART_ONE.p_usart_n, (uint8_t *)USART_ONE.usart_rx_buf, USART_SERVO_RX_SIZE); // ï¿½ï¿½ï¿½ï¿½DMAï¿½ï¿½ï¿½ï¿½
+//    }
 }

@@ -6,94 +6,169 @@
 #include <stdio.h>
 #include <string.h>
 
-/*------------------------ Ð­Òéºê¶¨Òå ------------------------*/
-/* Ö¡½á¹¹Ïà¹Ø */
-#define FRAME_HEADER_UP 0x4141   // ÉÏÎ»»úÖ¡Í·"AA"µÄÊ®Áù½øÖÆ±íÊ¾
-#define FRAME_FOOTER_UP 0x3D3D   // ÉÏÎ»»úÖ¡Î²"=="µÄÊ®Áù½øÖÆ±íÊ¾
-#define FRAME_HEADER_DOWN 0x4242 // ÏÂÎ»»úÖ¡Í·"BB"µÄÊ®Áù½øÖÆ±íÊ¾
-#define FRAME_FOOTER_DOWN 0x2B2B // ÏÂÎ»»úÖ¡Î²"++"µÄÊ®Áù½øÖÆ±íÊ¾
-#define MAX_DATA_LEN 128         // Ð­ÒéÔÊÐíµÄ×î´óÊý¾Ý³¤¶È
-#define CHECKSUM_INIT 0xFFFF     // CRC16Ð£ÑéµÄ³õÊ¼Öµ
+#define LEDLIGHT_ON 0
+#define LEDLIGHT_OFF 1
+#define BUZZER_ON 1
+#define BUZZER_OFF 0
+#define FAN_ON 1
+#define FANOFF 0
 
-/* ÃüÁîÏìÓ¦×´Ì¬¶¨Òå */
+/*------------------------ åè®®å®å®šä¹‰ ------------------------*/
+/* å¸§ç»“æž„ç›¸å…³ */
+#define FRAME_HEADER_UP 0x4141   // ä¸Šä½æœºå¸§å¤´"AA"çš„åå…­è¿›åˆ¶è¡¨ç¤º
+#define FRAME_FOOTER_UP 0x3D3D   // ä¸Šä½æœºå¸§å°¾"=="çš„åå…­è¿›åˆ¶è¡¨ç¤º
+#define FRAME_HEADER_DOWN 0x4242 // ä¸‹ä½æœºå¸§å¤´"BB"çš„åå…­è¿›åˆ¶è¡¨ç¤º
+#define FRAME_FOOTER_DOWN 0x2B2B // ä¸‹ä½æœºå¸§å°¾"++"çš„åå…­è¿›åˆ¶è¡¨ç¤º
+#define MAX_DATA_LEN 128         // åè®®å…è®¸çš„æœ€å¤§æ•°æ®é•¿åº¦
+#define CHECKSUM_INIT 0xFFFF     // CRC16æ ¡éªŒçš„åˆå§‹å€¼
+
+
+#define SEVRO_POS_CLAMP(x, lower, upper) (x >= upper ? upper : (x <= lower ? lower : x))
+
+
+/* å‘½ä»¤å“åº”çŠ¶æ€å®šä¹‰ */
 typedef enum
 {
-    CMD_RECEIVED,    // ÃüÁîÒÑ½ÓÊÕµ«Î´¿ªÊ¼Ö´ÐÐ
-    CMD_CHECK_ERROR, // Ð£Ñé´íÎó
-    CMD_EXECUTING,   // ÃüÁîÕýÔÚÖ´ÐÐÖÐ
-    CMD_COMPLETED    // ÃüÁîÖ´ÐÐÍê³É
+    CMD_RECEIVED,    // å‘½ä»¤å·²æŽ¥æ”¶ä½†æœªå¼€å§‹æ‰§è¡Œ
+    CMD_CHECK_ERROR, // æ ¡éªŒé”™è¯¯
+    CMD_EXECUTING,   // å‘½ä»¤æ­£åœ¨æ‰§è¡Œä¸­
+    CMD_COMPLETED    // å‘½ä»¤æ‰§è¡Œå®Œæˆ
 } CmdState;
 
-/*------------------------ Êý¾Ý½á¹¹¶¨Òå ------------------------*/
+/*------------------------ æ•°æ®ç»“æž„å®šä¹‰ ------------------------*/
 /**
- * @brief Ð­ÒéÖ¡ÍêÕû½á¹¹£¨ÓÃÓÚÄÚ´æÓ³Éä£©
- * @note Ê¹ÓÃpackedÊôÐÔ±ÜÃâÄÚ´æ¶ÔÆë´øÀ´µÄ½á¹¹¿ÕÏ¶
+ * @brief åè®®å¸§å®Œæ•´ç»“æž„ï¼ˆç”¨äºŽå†…å­˜æ˜ å°„ï¼‰
+ * @note ä½¿ç”¨packedå±žæ€§é¿å…å†…å­˜å¯¹é½å¸¦æ¥çš„ç»“æž„ç©ºéš™
  */
 typedef struct __attribute__((packed))
 {
-    uint16_t header;            // Ö¡Í·£¨2×Ö½Ú£©
-    uint8_t func;               // ¹¦ÄÜÂë£¨1×Ö½Ú£©
-    uint16_t data_len;          // Êý¾Ý³¤¶È£¨Ð¡¶Ë¸ñÊ½£¬2×Ö½Ú£©
-    uint8_t data[MAX_DATA_LEN]; // Êý¾Ý¸ºÔØ
-    uint16_t checksum;          // CRC16Ð£ÑéÖµ£¨Ð¡¶Ë¸ñÊ½£¬2×Ö½Ú£©
-    uint16_t footer;            // Ö¡Î²£¨2×Ö½Ú£©
+    uint16_t header;            // å¸§å¤´ï¼ˆ2å­—èŠ‚ï¼‰
+    uint8_t func;               // åŠŸèƒ½ç ï¼ˆ1å­—èŠ‚ï¼‰
+    uint16_t data_len;          // æ•°æ®é•¿åº¦ï¼ˆå°ç«¯æ ¼å¼ï¼Œ2å­—èŠ‚ï¼‰
+    uint8_t data[MAX_DATA_LEN]; // æ•°æ®è´Ÿè½½
+    uint16_t checksum;          // CRC16æ ¡éªŒå€¼ï¼ˆå°ç«¯æ ¼å¼ï¼Œ2å­—èŠ‚ï¼‰
+    uint16_t footer;            // å¸§å°¾ï¼ˆ2å­—èŠ‚ï¼‰
 } ProtocolFrame;
 
 typedef struct
 {
-    UART_HandleTypeDef *huart;           // °ó¶¨µÄUARTÓ²¼þÊµÀýÖ¸Õë
-    DMA_HandleTypeDef *hdma;             // °ó¶¨µÄDMAÓ²¼þÊµÀýÖ¸Õë
-    uint8_t rx_buf[2][MAX_DATA_LEN + 10]; // Ë«»º³å½ÓÊÕÕóÁÐ£¬+8ÈÝÄÉÍêÕûÖ¡Í·Î²
-    volatile uint8_t buf_idx;            // µ±Ç°»î¶¯»º³åÇøË÷Òý£¨0»ò1£©
-    CmdState cmd_state;                  // ÃüÁîÖ´ÐÐ×´Ì¬»ú
-    uint8_t current_cmd;                 // µ±Ç°´¦ÀíµÄÃüÁî¹¦ÄÜÂë
+    UART_HandleTypeDef *huart;           // ç»‘å®šçš„UARTç¡¬ä»¶å®žä¾‹æŒ‡é’ˆ
+    DMA_HandleTypeDef *hdma;             // ç»‘å®šçš„DMAç¡¬ä»¶å®žä¾‹æŒ‡é’ˆ
+    uint8_t rx_buf[2][MAX_DATA_LEN + 10]; // åŒç¼“å†²æŽ¥æ”¶é˜µåˆ—ï¼Œ+8å®¹çº³å®Œæ•´å¸§å¤´å°¾
+    volatile uint8_t buf_idx;            // å½“å‰æ´»åŠ¨ç¼“å†²åŒºç´¢å¼•ï¼ˆ0æˆ–1ï¼‰
+    CmdState cmd_state;                  // å‘½ä»¤æ‰§è¡ŒçŠ¶æ€æœº
+    uint8_t current_cmd;                 // å½“å‰å¤„ç†çš„å‘½ä»¤åŠŸèƒ½ç 
 } ProtocolHandle;
 
-// ´¥Ãþ´«¸ÐÆ÷ÀàÐÍÃ¶¾Ù
+// è§¦æ‘¸ä¼ æ„Ÿå™¨ç±»åž‹æžšä¸¾
 typedef enum
 {
-    TOUCH_HEAD = 0, // Í·²¿´¥Ãþ
-    TOUCH_BODY,     // ÉíÌå´¥Ãþ
-    TOUCH_CHIN      // ÏÂ°Í´¥Ãþ
+    TOUCH_HEAD = 0, // å¤´éƒ¨è§¦æ‘¸
+    TOUCH_BODY,     // èº«ä½“è§¦æ‘¸
+    TOUCH_CHIN      // ä¸‹å·´è§¦æ‘¸
 } TouchType;
+
+// ä¸Šç”µçŠ¶æ€ç±»åž‹æžšä¸¾
+typedef enum
+{
+	powerIdle = 0,//
+    hibernate = 1, // ä¼‘çœ 
+    wakeup = 2,     // å”¤é†’
+    Shutdown = 3,      // å…³æœº
+	ActionReset = 4,//é‡ç½®
+} PowerType_T;
 
 typedef struct
 {
-    uint8_t head_touch; // Í·²¿´¥Ãþ×´Ì¬£¨0/1 »ò ADC Öµ£©
-    uint8_t body_touch; // ÉíÌå´¥Ãþ×´Ì¬
-    uint8_t chin_touch; // ÏÂ°Í´¥Ãþ×´Ì¬
-    float roll;         // ·­¹ö½Ç£¨µ¥Î»£º¶È£©
-    float pitch;        // ¸©Ñö½Ç£¨µ¥Î»£º¶È£©
-    float yaw;          // Æ«º½½Ç£¨µ¥Î»£º¶È£©
+    uint8_t head_touch; // å¤´éƒ¨è§¦æ‘¸çŠ¶æ€ï¼ˆ0/1 æˆ– ADC å€¼ï¼‰
+    uint8_t body_touch; // èº«ä½“è§¦æ‘¸çŠ¶æ€
+    uint8_t chin_touch; // ä¸‹å·´è§¦æ‘¸çŠ¶æ€
+	uint8_t human_Abdomen;//è…¹éƒ¨äººä½“æ„Ÿåº”
+	uint8_t human_Backside;//èƒŒéƒ¨äººä½“æ„Ÿåº”
+    float roll;         // ç¿»æ»šè§’ï¼ˆå•ä½ï¼šåº¦ï¼‰
+    float pitch;        // ä¿¯ä»°è§’ï¼ˆå•ä½ï¼šåº¦ï¼‰
+    float yaw;          // åèˆªè§’ï¼ˆå•ä½ï¼šåº¦ï¼‰
 } SensorData;
 
 typedef enum
 {
-	MODE_NORMAL = 0,   // Õý³£¹¤×÷Ä£Ê½
-    MODE_IDLE , // ¿ÕÏÐÄ£Ê½
-    MODE_ACTION, // ×ö¶¯×÷Ä£Ê½
+	MODE_NORMAL = 0,   // æ­£å¸¸å·¥ä½œæ¨¡å¼
+    MODE_IDLE , // ç©ºé—²æ¨¡å¼
+    MODE_ACTION, // åšåŠ¨ä½œæ¨¡å¼
 } WorkMode;
 
 typedef struct
 {
-    WorkMode mode;         // ¹¤×÷Ä£Ê½
-    float voltage;         // µ±Ç°µçÑ¹(V)
-    uint8_t battery_level; // µçÁ¿°Ù·Ö±È(0-100)
-    bool is_charging;      // ³äµç×´Ì¬
-    float max_temp;        // ×î¸ßÎÂ¶È(¡æ)
-    uint16_t warning_code; // ¾¯¸æ´úÂë
-    uint16_t error_code;   // ´íÎó´úÂë
-    uint32_t uptime;       // ÔËÐÐÊ±¼ä(s)
+    WorkMode mode;         // å·¥ä½œæ¨¡å¼
+    float voltage;         // å½“å‰ç”µåŽ‹(V)
+    uint8_t battery_level; // ç”µé‡ç™¾åˆ†æ¯”(0-100)
+    bool is_charging;      // å……ç”µçŠ¶æ€
+    int max_temp;        // æœ€é«˜æ¸©åº¦(â„ƒ)
+    uint16_t warning_code; // è­¦å‘Šä»£ç 
+    uint8_t error_code;   // é”™è¯¯ä»£ç 
+	uint8_t posePanda; //å½“å‰å§¿æ€
+    uint32_t uptime;       // è¿è¡Œæ—¶é—´(s)
+	int tempBoard;
+	uint8_t sevroerror;
 } WorkStatus;
 
+typedef struct
+{
+	float headHorizontalAng;
+	float headVerticalAng;
+	
+}sevroParameter;
+
+
+typedef struct
+{
+	uint8_t led;
+	uint8_t buzzer;
+	uint8_t fan;
+} IOfunctionState;
+
+extern PowerType_T powerState_t;
 extern ACTION_STATE ActionNow;
 extern ProtocolHandle ph;
 extern WorkStatus stateRobot;
 extern uint8_t actionStop;
+extern ACTION_STATE ActionReceive;
+extern uint8_t touchTopofHead_Downside;
+extern uint8_t touchTopofHead_Upside;
+extern uint8_t touchChin_Downside;
+extern uint8_t touchChin_Upside;
+extern uint8_t humanDetectionAbdomen_Downside;
+extern uint8_t humanDetectionAbdomen_Upside;
+extern uint8_t humanDetectionBackside_Upside;
+extern uint8_t humanDetectionBackside_Downside;
+extern uint8_t touchBody_Downside;
+extern uint8_t touchBody_Upside;
+extern uint8_t touchChin;
+extern uint8_t touchBody;
+extern uint8_t touchTopofHead;
+extern uint8_t humanDetectionAbdomen;
+extern uint8_t humanDetectionBackside;
+extern uint8_t IOForCharging_Downside;
+extern uint8_t IOForCharging_Upside;
 
+
+extern IOfunctionState ioState;
+
+void ledSet(uint8_t mode);
+void buzzerSet(uint8_t mode);
+void fanSet(uint8_t mode);
+
+void RGB_Flash_InOneSecond(uint8_t times);
+void BUZZER_Flash_InOneSecond(uint8_t times);
 void sendStateActive(ProtocolHandle *ph, WorkStatus status);
+void sendSensorActive(ProtocolHandle *ph, uint8_t head, uint8_t body, uint8_t chin, uint8_t abdomen, uint8_t backside);
 void Key_Downside_Record(void);
+void IOForChargingDownside(void);
 void User_CommunicationInit(void);
 void User_Communication_IRQHandler(void);
 void Send_Response(ProtocolHandle *ph, uint8_t result);
+int getHorizontalAng(void);
+int getVerticalAng(void);
+void SoftwareReset(void);
+void User_Usart7_IRQHandler(void);
 #endif

@@ -51,6 +51,7 @@ osThreadId defaultTaskHandle;
 osThreadId TaskLowHandle;
 osThreadId TaskMidHandle;
 osThreadId TaskHighHandle;
+osThreadId myTask05Handle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -61,6 +62,7 @@ void StartDefaultTask(void const * argument);
 void StartTaskLow(void const * argument);
 void StartTaskMid(void const * argument);
 void StartTaskHigh(void const * argument);
+void StartTask05(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -116,12 +118,16 @@ void MX_FREERTOS_Init(void) {
   TaskLowHandle = osThreadCreate(osThread(TaskLow), NULL);
 
   /* definition and creation of TaskMid */
-  osThreadDef(TaskMid, StartTaskMid, osPriorityNormal, 0, 256);
+  osThreadDef(TaskMid, StartTaskMid, osPriorityNormal, 0, 2048);
   TaskMidHandle = osThreadCreate(osThread(TaskMid), NULL);
 
   /* definition and creation of TaskHigh */
   osThreadDef(TaskHigh, StartTaskHigh, osPriorityRealtime, 0, 128);
   TaskHighHandle = osThreadCreate(osThread(TaskHigh), NULL);
+
+  /* definition and creation of myTask05 */
+  osThreadDef(myTask05, StartTask05, osPriorityLow, 0, 128);
+  myTask05Handle = osThreadCreate(osThread(myTask05), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -199,6 +205,24 @@ __weak void StartTaskHigh(void const * argument)
     osDelay(1);
   }
   /* USER CODE END StartTaskHigh */
+}
+
+/* USER CODE BEGIN Header_StartTask05 */
+/**
+* @brief Function implementing the myTask05 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask05 */
+__weak void StartTask05(void const * argument)
+{
+  /* USER CODE BEGIN StartTask05 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartTask05 */
 }
 
 /* Private application code --------------------------------------------------*/

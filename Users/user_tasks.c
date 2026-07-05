@@ -6,245 +6,360 @@
 #include <stdbool.h>
 #include "user_communication.h"
 #include "user_adc.h"
+#include "user_imu_i2c.h"
+#include "adc.h"
+#include "DS18B20.h"
+#include "stdlib.h"
+#include "Myiic_IMU.h"
+#include "usart.h"
 
 int16_t ang_goal[15] = {0};
 uint16_t ms_goal[15] = {0};
 uint8_t Action_done[50] = {0};
 uint8_t ActionNowFlag = 1;
-ACTION_STATE ActionNow = IDLE;  // µ±Ç°¶¯×÷×´Ì¬
-ACTION_STATE ActionLast = IDLE; // ÉÏÒ»¸ö¶¯×÷×´Ì¬
-uint8_t speed = 8;              // ¶¯×÷µÄ²½½øËÙ¶È£¨µ¥Î»0.1¡ã£©
-int32_t step_counter = 1;       // µ±Ç°²½½øµ½¸Ã¶¯×÷ĞòÁĞµÄµÚ¼¸²½
-uint8_t vis[15] = {0};          // ÅĞ¶Ï¶æ»úÊÇ·ñµÖ´ïÎ»ÖÃ
+ACTION_STATE ActionNow = IDLE;  // å½“å‰åŠ¨ä½œçŠ¶æ€
+ACTION_STATE ActionLast = IDLE; // ä¸Šä¸€ä¸ªåŠ¨ä½œçŠ¶æ€
+uint8_t speed;              // èˆµæœºæ’è¡¥é€Ÿåº¦ï¼ˆå•ä½0.1åº¦ï¼‰
+int32_t step_counter = 1;       // å½“å‰åŠ¨ä½œåœ¨åŠ¨ä½œåºåˆ—ä¸­æ‰§è¡Œåˆ°ç¬¬å‡ æ­¥
+uint8_t vis[15] = {0};          // åˆ¤æ–­èˆµæœºæ˜¯å¦åˆ°ä½
 uint8_t Servo_Reset_Flag = 0;
-uint8_t Init_OK = 0;
+const uint8_t Init_OK = 1;
 int16_t LookPos[14] = {0};
-uint8_t actionStandup_getStartAngle = 0; // Ö´ĞĞ¶¯×÷Õ¾Á¢Ê±»ñÈ¡µ±Ç°¶æ»úÎ»ÖÃÎª³õÊ¼Î»ÖÃ
+uint8_t actionStandup_getStartAngle = 0; // æ‰§è¡Œç«™ç«‹åŠ¨ä½œæ—¶è·å–å½“å‰èˆµæœºä½ç½®ä½œä¸ºåˆå§‹ä½ç½®
 Motion_t_ram *motion_ram_last = &_Action_TEACH;
-Motion_t *motion_last = &M1;
+Motion_t *motion_last = (Motion_t *)&Motion_Stand_Bow;
+
 uint8_t ifStartAct = 0;
-uint8_t PoweronAction; // ÉÏµç¿ªÊ¼×öÒ»ÏµÁĞ¶¯×÷
+uint8_t PoweronAction; // ä¸Šç”µå¼€å§‹ä¸€ç³»åˆ—åŠ¨ä½œ
 uint8_t flag_sendExecuting = 0;
 uint8_t flag_sendCompleted = 0;
 
-void User_Init(void)
+uint8_t sendmodework = 0; // å‘é€å·¥ä½œä¸­çš„mode
+
+uint8_t actionPoseNext = POSE_SITTING;
+uint8_t actionPoseLast = POSE_SITTING;
+uint8_t actionNeedReturn = 0;
+extern uint16_t actionSwitchTime;
+uint8_t releaseSevroFlag = 0;
+
+uint8_t personTeachFlag = 0;
+uint8_t indexActionShowMode = 0;
+uint8_t indexActionShowModeStart = 0;
+extern uint8_t showModeFlag;
+extern uint8_t actionINDEXForshow1[13];
+void User_Init_HIGH(void)
 {
-#if 1
-    PoweronAction = 0;
+//	osDelay(3000);
+#if 0
+//    PoweronAction = 0;
     TEACHMODE = 0;
 #else
-    PoweronAction = 1; // ÉÏµç¿ªÊ¼×öÒ»ÏµÁĞ¶¯×÷
-    TEACHMODE = 0;
+//    PoweronAction = 1; // ä¸Šç”µå¼€å§‹ä¸€ç³»åˆ—åŠ¨ä½œ
+    TEACHMODE = 1;
 #endif
 
+	__disable_irq();
+	
+	MX_UART4_Init();
+	User_CommunicationInit(); // é€šä¿¡åè®®åˆå§‹åŒ–
+	User_TimerInit();      // ç»Ÿç®¡å…¨å±€çš„å®šæ—¶å™¨
+	User_TeachTimerInit(); // ç¤ºæ•™æ¨¡å¼ä¸“ç”¨å®šæ—¶å™¨
+	
+	__enable_irq();
+	__set_FAULTMASK(0);
+	User_ServoInit();      // èˆµæœºæ¶ˆæ¯åˆå§‹åŒ–ï¼ˆå«åº”ç­”ç­‰å¾…ï¼‰
 	User_AdcInit();
-    Action_init();         // ¶¯×÷¿â³õÊ¼»¯£¨¶¯×÷ĞÅÏ¢£©
-    User_ServoInit();      // ¶æ»úĞÅÏ¢³õÊ¼»¯£¨¶ÔÓ¦´®¿ÚµÈ£©
-    User_TimerInit();      // Í³ÁìÈ«¾ÖµÄ¶¨Ê±Æ÷
-    User_TeachTimerInit(); // Ê¾½ÌÄ£Ê½×¨ÓÃ¶¨Ê±Æ÷
-    User_CommunicationInit(); // Í¨ĞÅĞ­Òé³õÊ¼»¯
-    Init_OK = 1;
-    if (PoweronAction == 1)
-        ActionNow = ACTION_Yawn;
-    else
-        ActionNow = IDLE;
+    Action_init();         // åŠ¨ä½œåº“åˆå§‹åŒ–ï¼ˆåŠ è½½èˆµæœºæ¶ˆæ¯ï¼‰
+    
+	for(uint8_t i = 1;i <= 12;i++)
+	{
+		osDelay(10);
+		sevroSetMode(i,0);
+	}
+	
+	osDelay(100);
+	ds18b20_init();
+	osDelay(100);
+	
+    
+//	osDelay(1000);//ç­‰å¾…èˆµæœºç¨³å®š
+//	osDelay(1000);//ç­‰å¾…èˆµæœºç¨³å®š
+//	sevroSetZero();
+	
+	speed = 3;
+
+	//	ActionNow = ACTION_SIT;
+//    if (PoweronAction == 1)
+//        ActionNow = ACTION_Yawn;
+//    else
+//        ActionNow = IDLE;
+	
+	
 }
 
-//// Ê¾½ÌÓÃ
-// void ActionRUN(void)
-//{
-//     // ÅĞ¶Ïµ±Ç°ÔÚ½øĞĞµÄ¶¯×÷ActionNowFlagÊÇÃ»ÓĞ½áÊøµÄ²¢ÇÒÑéÖ¤IDµÄÕıÈ·ĞÔ
-//     if (Action_done[ActionNowFlag] == 0)
-//     {
-//         // ±éÀú¶æ»ú²¢¸üĞÂÏÂÒ»Ê±¿ÌµÄÄ¿±êÖµ
-//         for (int i = 1; i <= 12; i++)
-//         {
-//             if (goal_pos[i] <= Action_index[ActionNowFlag]->actions[step_counter].servoAngles[i] - speed)
-//                 goal_pos[i] += speed;
-//             else if (goal_pos[i] >= Action_index[ActionNowFlag]->actions[step_counter].servoAngles[i] + speed)
-//                 goal_pos[i] -= speed;
-//             // ÅĞ¶ÏÊÇ·ñµÖ´ïÄ¿±êÎ»ÖÃ
-//             if (goal_pos[i] > Action_index[ActionNowFlag]->actions[step_counter].servoAngles[i] - speed && goal_pos[i] < Action_index[ActionNowFlag]->actions[step_counter].servoAngles[i] + speed)
-//                 vis[i] = 1;
-//         }
-//         for (int i = 1; i <= 12; i++)
-//         {
-//             if (vis[i] == 0)
-//                 break;
-//             if (i == 12)
-//             {
-//                 // Î´Ö´ĞĞÍêËùÓĞ²½Êı
-//                 if (step_counter < Action_index[ActionNowFlag]->total_step - 1)
-//                 {
-//                     step_counter++;
-//                     for (int i = 1; i <= 12; i++)
-//                         vis[i] = 0;
-//                 }
-//                 // Ö´ĞĞÍê±Ï
-//                 else if (step_counter == Action_index[ActionNowFlag]->total_step - 1)
-//                 {
-//                     // µ±Ç°¶¯×÷Done
-//                     Action_done[Action_index[ActionNowFlag]->actionId] = 1;
-//                     // Ïà¹Ø²ÎÊı¸´Î»
-//                     step_counter = 1;
-//                     actionStandup_getStartAngle = 0;
+void User_Init_LOW(void)
+{
+	osDelay(1000);//ç­‰å¾…èˆµæœºç¨³å®š
+	MPU6050_Init();
+	userImuInit();//ä¸Šç”µæ ¡å‡†å§¿æ€
+	
+}
+int absInt(int num) {
+    // å–ç»å¯¹å€¼ï¼šè´Ÿæ•°ç›´æ¥è¿”å›å…¶ç›¸åæ•°
+    return num < 0 ? -num : num;
+}
 
-//                    for (int i = 1; i <= 12; i++)
-//                        vis[i] = 0;
-//                }
-//            }
-//        }
-//    }
-//}
 
-// ÅĞ¶Ïµ¥¶À¶¯×÷ÊÇ·ñµ½Î»
+extern uint16_t timerStepForAction;
+uint16_t timerStepForActionLast = 0;
+int16_t goal_posOffsetAv[12];
+int16_t speedActionUse[12];
+int16_t differenceAction[12];
+extern uint16_t actionSwitchTime;
+// åˆ¤æ–­å•æ­¥åŠ¨ä½œæ˜¯å¦åˆ°ä½ï¼ˆFlashåŠ¨ä½œåº“ç‰ˆæœ¬ï¼‰
 bool _SingleAction_CheckApproch(ServoActionSeries *action)
 {
+	int maxValue = 0;
     for (int i = 1; i <= 12; i++)
     {
-        if (goal_pos[i] <= action->actions[step_counter].servoAngles[i] - speed)
+//		if (goal_pos[i] <= action->actions[step_counter].servoAngles[i] - speed)
+//            goal_pos[i] += speed;
+//        else if (goal_pos[i] >= action->actions[step_counter].servoAngles[i] + speed)
+//            goal_pos[i] -= speed;
+		
+//		goal_posOffsetAv[i] = action->actions[step_counter + 1].servoAngles[i]-action->actions[step_counter].servoAngles[i];
+//		speedActionUse[i] = goal_posOffsetAv[i] /(200/11);// è‹¥å®šæ—¶å™¨200ms step+1ï¼Œè€Œè¿™é‡Œ11msæ‰§è¡Œä¸€æ¬¡
+//		if (goal_pos[i] <= action->actions[step_counter].servoAngles[i] - speed)
+//            goal_pos[i] += speedActionUse[i];
+//        else if (goal_pos[i] >= action->actions[step_counter].servoAngles[i] + speed)
+//            goal_pos[i] -= speedActionUse[i];
+		
+//		goal_pos[i] = action->actions[step_counter].servoAngles[i];		
+		if (goal_pos[i] <= action->actions[step_counter].servoAngles[i] - speed)
             goal_pos[i] += speed;
         else if (goal_pos[i] >= action->actions[step_counter].servoAngles[i] + speed)
             goal_pos[i] -= speed;
-        // ÅĞ¶ÏÊÇ·ñµÖ´ïÄ¿±êÎ»ÖÃ
-        if (goal_pos[i] > action->actions[step_counter].servoAngles[i] - speed && goal_pos[i] < action->actions[step_counter].servoAngles[i] + speed)
-            vis[i] = 1;
     }
-
-    for (int i = 1; i <= 12; i++)
-    {
-        if (vis[i] == 0)
-            break;
-        if (i == 12)
-        {
-            // Î´Ö´ĞĞÍêËùÓĞ²½Êı
+	for(uint8_t i = 1;i<=12;i++)
+	{
+		differenceAction[i-1] = absInt(action->actions[step_counter].servoAngles[i] - action->actions[step_counter+1].servoAngles[i]);
+	}
+	
+	for (uint8_t i = 1; i <= 12; i++) {
+        // å¦‚æœå½“å‰å…ƒç´ å¤§äºå½“å‰æœ€å¤§å€¼ï¼Œæ›´æ–°æœ€å¤§å€¼
+        if (differenceAction[i-1] > maxValue) {
+            maxValue = differenceAction[i-1];
+        }
+    }	
+	
+	if(ActionNow != 999)
+	{
+//		if(step_counter<action->total_step-1)
+//		{
+//			 if (maxValue < 100) {
+//				actionSwitchTime = 130;
+//			}
+//			// é€»è¾‘2ï¼šå·®å€¼ >= 100ï¼Œçº¿æ€§æ˜ å°„ï¼ˆå·®å€¼è¶Šå¤§é—´éš”è¶Šå¤§ï¼‰
+//			else {
+//				// çº¿æ€§å…¬å¼æ¨å¯¼å¾— output = k*input + bï¼ˆkä¸ºæ–œç‡ï¼Œbä¸ºæˆªè·ï¼‰
+//				// å·²çŸ¥ input=340 æ—¶ output=190ï¼Œæ»¡è¶³"å·®å€¼è¶Šå°é—´éš”è¶Šå°"ï¼Œkä¸ºæ­£
+//				// ä¸ºäº†çº¿æ€§æ˜ å°„ä¸€è‡´æ€§ï¼šå‡è®¾å·®å€¼=100æ—¶å¯¹åº”é—´éš”190ï¼ˆæœ€å¤§å€¼é€’å‡è¶‹åŠ¿ï¼‰
+//				// æ–œç‡kè®¡ç®—ï¼šå·®å€¼ä»100åˆ°340ï¼Œé—´éš”ä»250åˆ°190ï¼ˆçº¿æ€§é€’å‡ï¼Œæ•°å€¼åŒ¹é…ï¼‰
+//				const float k = (ACTIONTIMESTEP - 130.0f) / (420 - 100);  // æ–œç‡â‰ˆ-0.25
+//				const float b = ACTIONTIMESTEP - k * 100;  // æˆªè·â‰ˆ275.0
+//				
+//				actionSwitchTime = k * maxValue + b;
+//			}
+//		}
+//		else actionSwitchTime = ACTIONTIMESTEP;
+		
+		/*============== å›ºå®šæ­¥è¿›æ—¶é—´ ==============*/
+		actionSwitchTime = ACTIONTIMESTEP;
+	}
+	
+	if(timerStepForAction != timerStepForActionLast)
+	{
+		timerStepForActionLast = timerStepForAction;
+            // æœªæ‰§è¡Œå®Œåºåˆ—æ­¥è¿›
             if (step_counter < action->total_step - 1)
             {
                 step_counter++;
                 for (int i = 1; i <= 12; i++)
-                    vis[i] = 0;
-                return false;
+				{
+					vis[i] = 0;
+					goal_pos[i] = action->actions[step_counter-1].servoAngles[i];
+				}
             }
-            // Ö´ĞĞÍê±Ï
+            // æ‰§è¡Œå®Œæˆ
             else if (step_counter == action->total_step - 1)
             {
-                // µ±Ç°¶¯×÷Done
+				for (int i = 1; i <= 12; i++)
+				{
+						goal_pos[i] = action->actions[step_counter].servoAngles[i];
+				}
+                // å½“å‰åŠ¨ä½œå®Œæˆ
                 Action_done[action->actionId] = 1;
-                // Ïà¹Ø²ÎÊı¸´Î»
+                // ç›¸å…³å‚æ•°å¤ä½
                 for (int i = 1; i <= 12; i++)
                     vis[i] = 0;
                 return true;
             }
-        }
-    }
+	}
     return false;
 }
 
-// ÅĞ¶Ïµ¥¶À¶¯×÷ÊÇ·ñµ½Î»
+// åˆ¤æ–­å•æ­¥åŠ¨ä½œæ˜¯å¦åˆ°ä½ï¼ˆRAM/è´å¡å°”ç‰ˆæœ¬ï¼‰
 bool _SingleAction_CheckApproch_Bezier(ServoActionSeries_ram *action)
 {
-    // ĞèÒª
-    if (action->ifNeedBezier == 1)
+	for (int i = 1; i <= 12; i++)
     {
-        if (actionStandup_getStartAngle == 0)
-        {
-            for (int i = 1; i <= 12; i++)
-                action->startservoAngles[i] = SERVO[i].pos_read; // »ñÈ¡µ±Ç°½Ç¶È
-            actionStandup_getStartAngle = 1;
-        }
-        User_BezierCurve(action->total_step, action);
-    }
-
-    for (int i = 1; i <= 12; i++)
-    {
-        if (goal_pos[i] <= action->actions[step_counter].servoAngles[i] - speed)
+		if (goal_pos[i] <= action->actions[step_counter].servoAngles[i] - speed)
             goal_pos[i] += speed;
         else if (goal_pos[i] >= action->actions[step_counter].servoAngles[i] + speed)
             goal_pos[i] -= speed;
-        // ÅĞ¶ÏÊÇ·ñµÖ´ïÄ¿±êÎ»ÖÃ
-        if (goal_pos[i] > action->actions[step_counter].servoAngles[i] - speed && goal_pos[i] < action->actions[step_counter].servoAngles[i] + speed)
-            vis[i] = 1;
+//		goal_pos[i] = action->actions[step_counter].servoAngles[i];
+//		goal_posOffsetAv[i] = action->actions[step_counter + 1].servoAngles[i]-action->actions[step_counter].servoAngles[i];
+//		speedActionUse[i] = goal_posOffsetAv[i] /(200/11);// è‹¥å®šæ—¶å™¨200ms step+1ï¼Œè€Œè¿™é‡Œ11msæ‰§è¡Œä¸€æ¬¡
+//		if (goal_pos[i] <= action->actions[step_counter].servoAngles[i] - speed)
+//            goal_pos[i] += speedActionUse[i];
+//        else if (goal_pos[i] >= action->actions[step_counter].servoAngles[i] + speed)
+//            goal_pos[i] -= speedActionUse[i];
     }
-    for (int i = 1; i <= 12; i++)
-    {
-        if (vis[i] == 0)
-            break;
-        if (i == 12)
-        {
-            // Î´Ö´ĞĞÍêËùÓĞ²½Êı
+	if(timerStepForAction != timerStepForActionLast)
+	{
+		timerStepForActionLast = timerStepForAction;
+            // æœªæ‰§è¡Œå®Œåºåˆ—æ­¥è¿›
             if (step_counter < action->total_step - 1)
             {
                 step_counter++;
                 for (int i = 1; i <= 12; i++)
-                    vis[i] = 0;
+				{
+					vis[i] = 0;
+					goal_pos[i] = action->actions[step_counter-1].servoAngles[i];
+				}
+                    
                 return false;
             }
-            // Ö´ĞĞÍê±Ï
+            // æ‰§è¡Œå®Œæˆ
             else if (step_counter == action->total_step - 1)
             {
-                // µ±Ç°¶¯×÷Done
+				for (int i = 1; i <= 12; i++)
+				{
+						goal_pos[i] = action->actions[step_counter].servoAngles[i];
+				}
+                // å½“å‰åŠ¨ä½œå®Œæˆ
                 Action_done[action->actionId] = 1;
-                // Ïà¹Ø²ÎÊı¸´Î»
+                // ç›¸å…³å‚æ•°å¤ä½
                 for (int i = 1; i <= 12; i++)
                     vis[i] = 0;
                 return true;
             }
-        }
-    }
+	}
+	
     return false;
 }
+extern uint8_t actionFromemotion;
 
-// ½«iterÇåÁã£¬·½±ãÔÙ´Î×öÕâ¸ö¶¯×÷
+// ä»iterå¤ä½ï¼Œè®©åŠ¨ä½œåºåˆ—èƒ½å†æ¬¡è§¦å‘è¿è¡Œ
 void Motion_Reset(Motion_t *motion_)
 {
+//	osDelay(10);
+//	sevroSetMode(1,2);
+//	sevroSetMode(2,2);
+//	sevroSetMode(3,2);
+//	
+//	sevroSetMode(6,2);
+//	sevroSetMode(7,2);
+//	sevroSetMode(8,2);
+	
     for (int i = 0; i < motion_->point_total; i++)
     {
-        Action_done[motion_->motion[i].actionId] = 0; // ÖØÖÃ¶¯×÷Íê³É±êÖ¾
+        Action_done[motion_->motion[i].actionId] = 0; // é‡ç½®åŠ¨ä½œå®Œæˆæ ‡å¿—
     }
     step_counter = 1;
-	if(flag_sendCompleted  == 0) 
+	
+	if(flag_sendCompleted  == 0 && actionNeedReturn == 0 && motion_ != NULL) 
 	{
-		Send_Response(&ph, 0x03); // ·¢ËÍÖ´ĞĞÍê³ÉÏìÓ¦
+		if(actionFromemotion == 1)
+		ph.current_cmd = 1;
+		else ph.current_cmd = 2;
+		if(showModeFlag == 0)
+		Send_Response(&ph, 0x03); // å‘é€æ‰§è¡Œå®Œæˆåº”ç­”
 		flag_sendCompleted = 1;
+		osDelay(1);
 		stateRobot.mode = MODE_IDLE;
 		sendStateActive(&ph, stateRobot);
+		
 	}
-    motion_->point_iter = 0;         // ÖØÖÃ¶¯×÷µãĞòºÅ
-    actionStandup_getStartAngle = 0; // ÓÃÓÚÖØĞÂ»ñÈ¡µ±Ç°½Ç¶È´Ó¶ø½øĞĞĞÂµÄ±´Èû¶ûÇúÏß¼ÆËã
+	if(motion_ != NULL)
+		{
+			ActionNow = IDLE;
+		}
+		else
+		{
+			actionPoseLast = POSE_STANDING;
+		}
+    motion_->point_iter = 0;         // é‡ç½®åŠ¨ä½œè¿­ä»£å™¨
+//    actionStandup_getStartAngle = 0; // é‡ç½®é‡æ–°è·å–å½“å‰è§’åº¦ä»è€Œç”Ÿæˆæ–°çš„è´å¡å°”æ›²çº¿é€»è¾‘
+//	actionPoseLast = motion_->poseend;
+//	speed = 2;
+		actionFromemotion = 0;
+	actionSwitchTime = ACTIONTIMESTEP;
 }
-// ½«iterÇåÁã£¬·½±ãÔÙ´Î×öÕâ¸ö¶¯×÷
+// ä»iterå¤ä½ï¼Œè®©åŠ¨ä½œåºåˆ—èƒ½å†æ¬¡è§¦å‘è¿è¡Œï¼ˆRAMç‰ˆæœ¬ï¼‰
 void Motion_Reset_Bezier(Motion_t_ram *motion_)
 {
     for (int i = 0; i < motion_->point_total; i++)
     {
-        Action_done[motion_->motion[i].actionId] = 0; // ÖØÖÃ¶¯×÷Íê³É±êÖ¾
+        Action_done[motion_->motion[i].actionId] = 0; // é‡ç½®åŠ¨ä½œå®Œæˆæ ‡å¿—
     }
-    motion_->point_iter = 0; // ÖØÖÃ¶¯×÷µãĞòºÅ
     step_counter = 1;
+	sendmodework = 0;
 	if(flag_sendCompleted  == 0) 
 	{
-		Send_Response(&ph, 0x03); // ·¢ËÍÖ´ĞĞÍê³ÉÏìÓ¦
+		ph.current_cmd = 2;
+		Send_Response(&ph, 0x03); // å‘é€æ‰§è¡Œå®Œæˆåº”ç­”
 		flag_sendCompleted = 1;
+		osDelay(1);
 		stateRobot.mode = MODE_IDLE;
 		sendStateActive(&ph, stateRobot);
 	}
-    actionStandup_getStartAngle = 0; // ÓÃÓÚÖØĞÂ»ñÈ¡µ±Ç°½Ç¶È´Ó¶ø½øĞĞĞÂµÄ±´Èû¶ûÇúÏß¼ÆËã
+	motion_->point_iter = 0;         // é‡ç½®åŠ¨ä½œè¿­ä»£å™¨
+    actionStandup_getStartAngle = 0; // é‡ç½®é‡æ–°è·å–å½“å‰è§’åº¦ä»è€Œç”Ÿæˆæ–°çš„è´å¡å°”æ›²çº¿é€»è¾‘
+//	actionPoseLast = motion_->poseend;
+//	ActionNow = IDLE; 
 }
 
 extern uint8_t flag_act;
-// ÔË¶¯º¯Êı£¬Í¨¹ıÅĞ¶Ïiter·µ»Øtrue»òfalse
+// è¿åŠ¨åºåˆ—è¿è¡Œï¼šé€šè¿‡åˆ¤æ–­iteræ­¥è¿›ï¼Œè¿”å›trueè¡¨ç¤ºåºåˆ—æ‰§è¡Œå®Œæ¯•
 bool Motion_Run(Motion_t *motion_)
 {
-	if(step_counter == 1)
+	if(step_counter == 1 && releaseSevroFlag == 0) releaseSevroFlag = 1;
+	if(releaseSevroFlag == 1)
+	{
+		osDelay(10);
+		sevroSetMode(1,0);
+		sevroSetMode(2,0);
+		sevroSetMode(3,0);
+		
+		sevroSetMode(6,0);
+		sevroSetMode(7,0);
+		sevroSetMode(8,0);
+		releaseSevroFlag = 0;
+	}
+	if(motion_ != NULL)
+	flag_sendCompleted = 0;
+	if(flag_sendExecuting == 0) 
+	{
+		Send_Response(&ph, 0x02); // å‘é€å¼€å§‹æ‰§è¡Œåº”ç­”
+		flag_sendExecuting = 1;
+		osDelay(1);
+	}
+	if(sendmodework == 0)
 	{
 		stateRobot.mode = MODE_ACTION;
 		sendStateActive(&ph, stateRobot);
-	}
-	if(flag_sendExecuting == 0) 
-	{
-		Send_Response(&ph, 0x02); // ·¢ËÍ¿ªÊ¼Ö´ĞĞÏìÓ¦
-		flag_sendExecuting = 1;
-		flag_sendCompleted = 0;
+		sendmodework = 1;
 	}
     motion_last = motion_;
     if (ifStartAct == 0)
@@ -252,6 +367,7 @@ bool Motion_Run(Motion_t *motion_)
         for (int i = 1; i <= 12; i++)
         {
             goal_pos[i] = motion_->motion[0].actions[1].servoAngles[i];
+			//goal_pos[i] = SERVO[i].pos_read;
         }
         flag_act = 1;
         ifStartAct = 1;
@@ -260,7 +376,7 @@ bool Motion_Run(Motion_t *motion_)
     {
         if (motion_->point_iter < motion_->point_total - 1)
         {
-            motion_->point_iter++; // ÇĞ»»ÏÂÒ»¸ö¶¯×÷µã
+            motion_->point_iter++; // åˆ‡æ¢åˆ°ä¸‹ä¸€ä¸ªåŠ¨ä½œç‚¹
             return false;
         }
 
@@ -269,24 +385,40 @@ bool Motion_Run(Motion_t *motion_)
             return true;
         }
         return false;
-    } // ¼ì²âÊÇ·ñÍê³ÉÕû¸ö¶¯×÷
+    } // æ£€æŸ¥æ˜¯å¦å®Œæˆæ•´ä¸ªåºåˆ—
     return false;
 }
 
-// ÔË¶¯º¯Êı£¬Í¨¹ıÅĞ¶Ïiter·µ»Øtrue»òfalse
+// è¿åŠ¨åºåˆ—è¿è¡Œï¼ˆRAMç‰ˆæœ¬ï¼‰ï¼šé€šè¿‡åˆ¤æ–­iteræ­¥è¿›ï¼Œè¿”å›trueè¡¨ç¤ºåºåˆ—æ‰§è¡Œå®Œæ¯•
 bool Motion_Run_Bezier(Motion_t_ram *motion_)
 {
-	if(step_counter == 1)
+	if(step_counter == 1 && releaseSevroFlag == 0) releaseSevroFlag = 1;
+	if(releaseSevroFlag == 1)
 	{
-		stateRobot.mode = MODE_ACTION;
-		sendStateActive(&ph, stateRobot);
+		osDelay(10);
+		sevroSetMode(1,0);
+		sevroSetMode(2,0);
+		sevroSetMode(3,0);
+		
+		sevroSetMode(6,0);
+		sevroSetMode(7,0);
+		sevroSetMode(8,0);
+		releaseSevroFlag = 0;
 	}
+	
     motion_ram_last = motion_;
 	if(flag_sendExecuting == 0) 
 	{
-		Send_Response(&ph, 0x02); // ·¢ËÍ¿ªÊ¼Ö´ĞĞÏìÓ¦
+		Send_Response(&ph, 0x02); // å‘é€å¼€å§‹æ‰§è¡Œåº”ç­”
 		flag_sendExecuting = 1;
 		flag_sendCompleted = 0;
+		osDelay(1);
+	}
+	if(sendmodework == 0)
+	{
+		stateRobot.mode = MODE_ACTION;
+		sendStateActive(&ph, stateRobot);
+		sendmodework = 1;
 	}
     if (ifStartAct == 0)
     {
@@ -301,7 +433,7 @@ bool Motion_Run_Bezier(Motion_t_ram *motion_)
     {
         if (motion_->point_iter < motion_->point_total - 1)
         {
-            motion_->point_iter++; // ÇĞ»»ÏÂÒ»¸ö¶¯×÷µã
+            motion_->point_iter++; // åˆ‡æ¢åˆ°ä¸‹ä¸€ä¸ªåŠ¨ä½œç‚¹
             return false;
         }
 
@@ -310,1187 +442,232 @@ bool Motion_Run_Bezier(Motion_t_ram *motion_)
             return true;
         }
         return false;
-    } // ¼ì²âÊÇ·ñÍê³ÉÕû¸ö¶¯×÷
+    } // æ£€æŸ¥æ˜¯å¦å®Œæˆæ•´ä¸ªåºåˆ—
     return false;
 }
 
-void robotRun()
+
+/*
+ * å§¿æ€å®šä¹‰:
+ * POSE_SITTING   = 1  // å
+ * POSE_LYING     = 2  // è¶´
+ * POSE_STANDING  = 3  // ç«™ç«‹
+ *
+ * å§¿æ€åˆ‡æ¢:
+ * ACTION_SIT_TO_STAND   // å->ç«™ç«‹
+ * ACTION_STAND_TO_SIT   // ç«™ç«‹->å
+ * ACTION_SIT_TO_LIE     // å->è¶´
+ * ACTION_LIE_TO_SIT     // è¶´->å
+ * ACTION_LIE_TO_STAND   // è¶´->ç«™ç«‹
+ * ACTION_STAND_TO_LIE   // ç«™ç«‹->è¶´
+ */
+void switchPose(uint8_t lastPose, uint8_t nowPose)
 {
-    switch (ActionNow)
+    uint8_t composeUnit = ((lastPose << 4) | (nowPose & 0x0f));
+    // speed = 7;
+    switch (composeUnit)
     {
-    case ACTION_TEACH: // 0
-                       // Ê¾½Ì
-        _Action_TEACH.motion[0].total_step = TEACH_TOTAL_STEP;
-        if (Motion_Run_Bezier(&_Action_TEACH) == true)
-        {
-            Motion_Reset_Bezier(&_Action_TEACH); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        //        ActionNowFlag = 0;
-        //        ActionRUN();
-        //		ActionNow = IDLE;
-
-        break;
-
-    case ACTION_WALK: // 1
-        // ×ßÂ·
-        if (Motion_Run(&_Action_Walk) == true)
-        {
-            Motion_Reset(&_Action_Walk); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-        }
-
-        break;
-
-    case ACTION_WAVE: // 2
-        // »ÓÊÖ
-        if (Motion_Run(&_Active_Wave) == true)
-        {
-            Motion_Reset(&_Active_Wave); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_STANDUP: // 3
-        // Õ¾Á¢
-        if (Motion_Run_Bezier(&_Action_Standup) == true)
-        {
-            Motion_Reset_Bezier(&_Action_Standup); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_SIT: // 4
-        // ×øÏÂ
-        if (Motion_Run((Motion_t *)&_Active_Sit) == true)
-        {
-            Motion_Reset((Motion_t *)&_Active_Sit); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_SITTOEAT: // 5 ×ø×Å³Ô¶«Î÷
-        // ×øÏÂ³Ô¶«Î÷
-        if (Motion_Run(&_Active_SittoEat) == true)
-        {
-            Motion_Reset(&_Active_SittoEat); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_HUG: // 6 Óµ±§
-        // Óµ±§
-        if (Motion_Run(&_Action_Hug) == true)
-        {
-            Motion_Reset(&_Action_Hug); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_LIEPRONE: // 7 ÎÔ
-        if (PoweronAction == 1)
-            PoweronAction = 0;
-        if (Motion_Run_Bezier(&_Action_LieProne) == true)
-        {
-            Motion_Reset_Bezier(&_Action_LieProne); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_BIGLIE: // 8 ´ó×ÖÌÉ
-        if (Motion_Run_Bezier(&_Action_BigLie) == true)
-        {
-            Motion_Reset_Bezier(&_Action_BigLie); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_SIT2PRONE: // 9 ×ø->ÎÔ
-        if (Motion_Run(&_Action_Sit2Prone) == true)
-        {
-            Motion_Reset(&_Action_Sit2Prone); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            if (PoweronAction == 1)
-                ActionNow = ACTION_WagHips;
-            else
-                ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_HELLO: // 11 ÄãºÃ
-        if (Motion_Run(&_Action_Hello) == true)
-        {
-            Motion_Reset(&_Action_Hello); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            if (PoweronAction == 1)
-                ActionNow = ACTION_M1;
-            else
-                ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_ScratchHead: //  ÄÓÍ·
-        if (Motion_Run(&_Action_ScratchHead) == true)
-        {
-            Motion_Reset(&_Action_ScratchHead); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_Worship: //  °İÒ»°İ
-        if (Motion_Run(&_Action_Worship) == true)
-        {
-            Motion_Reset(&_Action_Worship); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_ShakeHead: //  Ò¡Í·
-        if (Motion_Run(&_Action_ShakeHead) == true)
-        {
-            Motion_Reset(&_Action_ShakeHead); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_Pouting: //  ¾ïÆ¨¹É
-        if (Motion_Run(&_Action_Pouting) == true)
-        {
-            Motion_Reset(&_Action_Pouting); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_TurnThings: //  ·­¶«Î÷
-        if (Motion_Run(&_Action_TurnThings) == true)
-        {
-            Motion_Reset(&_Action_TurnThings); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_SleepTilt: //  ÍáÍ·Ë¯¾õ
-        if (Motion_Run(&_Action_SleepTilt) == true)
-        {
-            Motion_Reset(&_Action_SleepTilt); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_WashFace: //  Ï´Á³
-        if (Motion_Run(&_Action_WashFace) == true)
-        {
-            Motion_Reset(&_Action_WashFace); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            if (PoweronAction == 1)
-                ActionNow = ACTION_Eat;
-            else
-                ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_SideLieScratch: //  ²àÌÉÄÓÑ÷
-        if (Motion_Run(&_Action_SideLieScratch) == true)
-        {
-            Motion_Reset(&_Action_SideLieScratch); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_SitLegsOpen: //  ¿ªÍÈ×ø
-        if (Motion_Run(&_Action_SitLegsOpen) == true)
-        {
-            Motion_Reset(&_Action_SitLegsOpen); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_StandToSit: //  Õ¾->×ø
-        if (Motion_Run(&_Action_StandToSit) == true)
-        {
-            Motion_Reset(&_Action_StandToSit); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_SideLie: //  ²àÌÉ
-        if (Motion_Run(&_Action_SideLie) == true)
-        {
-            Motion_Reset(&_Action_SideLie); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_WagHips: //  Å¤Æ¨¹É
-        if (Motion_Run(&_Action_WagHips) == true)
-        {
-            Motion_Reset(&_Action_WagHips); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            if (PoweronAction == 1)
-                ActionNow = ACTION_LIEPRONE;
-            else
-                ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_HighFive: //  »÷ÕÆ¶¯×÷
-        if (Motion_Run(&_Action_HighFive) == true)
-        {
-            Motion_Reset(&_Action_HighFive); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_HugKiss: //  »·±§kiss¶¯×÷
-        if (Motion_Run(&_Action_HugKiss) == true)
-        {
-            Motion_Reset(&_Action_HugKiss); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_Handshake: //  ÎÕÊÖ¶¯×÷
-        if (Motion_Run(&_Action_Handshake) == true)
-        {
-            Motion_Reset(&_Action_Handshake); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_ScratchButt: //  ÄÓÆ¨¹É¶¯×÷
-        if (Motion_Run(&_Action_ScratchButt) == true)
-        {
-            Motion_Reset(&_Action_ScratchButt); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_Bow: //  ¾Ï¹ª¶¯×÷
-        if (Motion_Run(&_Action_Bow) == true)
-        {
-            Motion_Reset(&_Action_Bow); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_Cheer: //  »Ó±Û¼ÓÓÍ¶¯×÷
-        if (Motion_Run(&_Action_Cheer) == true)
-        {
-            Motion_Reset(&_Action_Cheer); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_DrawHeart: //  »­°®ĞÄ¶¯×÷
-        if (Motion_Run(&_Action_DrawHeart) == true)
-        {
-            Motion_Reset(&_Action_DrawHeart); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_StompFoot: //  ÆşÑü¶å½Å¶¯×÷
-        if (Motion_Run(&_Action_StompFoot) == true)
-        {
-            Motion_Reset(&_Action_StompFoot); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_Drum: //  »÷¹Ä¶¯×÷
-        if (Motion_Run(&_Action_Drum) == true)
-        {
-            Motion_Reset(&_Action_Drum); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_RubEyes: //  ÈàÑÛ¾¦¶¯×÷
-        if (Motion_Run(&_Action_RubEyes) == true)
-        {
-            Motion_Reset(&_Action_RubEyes); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            if (PoweronAction == 1)
-                ActionNow = ACTION_WashFace;
-            else
-                ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_Yawn: //  ´ò¹şÇ·¶¯×÷
-        if (Motion_Run(&_Action_Yawn) == true)
-        {
-            Motion_Reset(&_Action_Yawn); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            if (PoweronAction == 1)
-                ActionNow = ACTION_RubEyes;
-            else
-                ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_SitPatButt: //  ×ø×ÅÅÄÆ¨¹É¶¯×÷
-        if (Motion_Run(&_Action_SitPatButt) == true)
-        {
-            Motion_Reset(&_Action_SitPatButt); // ÖØĞÂÊ¹ÄÜ¸Ã¶¯×÷£¬±ãÓÚÏÂ´ÎÔÙ´ÎÅÜ
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_Eat: //  ³Ô¶«Î÷
-        if (Motion_Run(&_Action_Eat) == true)
-        {
-            Motion_Reset(&_Action_Eat);
-            if (PoweronAction == 1)
-                ActionNow = ACTION_HELLO;
-            else
-                ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_Stretch: //  ÉìÀÁÑü
-        if (Motion_Run(&_Action_Stretch) == true)
-        {
-            Motion_Reset(&_Action_Stretch);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_StretchLying: //  ÌÉ×ÅÉìÀÁÑü
-        if (Motion_Run(&_Action_StretchLying) == true)
-        {
-            Motion_Reset(&_Action_StretchLying);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_WaveStanding: //  Õ¾Á¢»ÓÊÖ
-        if (Motion_Run(&_Action_WaveStanding) == true)
-        {
-            Motion_Reset(&_Action_WaveStanding);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_ScratchButtStanding: //  Õ¾Á¢ÄÓÆ¨¹É
-        if (Motion_Run(&_Action_ScratchButtStanding) == true)
-        {
-            Motion_Reset(&_Action_ScratchButtStanding);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_SplitStanding: //  Õ¾Á¢Åü²æ
-        if (Motion_Run(&_Action_SplitStanding) == true)
-        {
-            Motion_Reset(&_Action_SplitStanding);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_PatTummy: //  ÅÄ¶Ç×Ó
-        if (Motion_Run(&_Action_PatTummy) == true)
-        {
-            Motion_Reset(&_Action_PatTummy);
-            if (PoweronAction == 1)
-                ActionNow = ACTION_SIT2PRONE;
-            else
-                ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M1:
-        if (Motion_Run(&M1) == true)
-        {
-            Motion_Reset(&M1);
-            if (PoweronAction == 1)
-                ActionNow = ACTION_PatTummy;
-            else
-                ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M3:
-        if (Motion_Run(&M3) == true)
-        {
-            Motion_Reset(&M3);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M4:
-        if (Motion_Run(&M4) == true)
-        {
-            Motion_Reset(&M4);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M5:
-        if (Motion_Run(&M5) == true)
-        {
-            Motion_Reset(&M5);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M6:
-        if (Motion_Run(&M6) == true)
-        {
-            Motion_Reset(&M6);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M7:
-        if (Motion_Run(&M7) == true)
-        {
-            Motion_Reset(&M7);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M8:
-        if (Motion_Run(&M8) == true)
-        {
-            Motion_Reset(&M8);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M10:
-        if (Motion_Run(&M10) == true)
-        {
-            Motion_Reset(&M10);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M11:
-        if (Motion_Run(&M11) == true)
-        {
-            Motion_Reset(&M11);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M14:
-        if (Motion_Run(&M14) == true)
-        {
-            Motion_Reset(&M14);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M16:
-        if (Motion_Run(&M16) == true)
-        {
-            Motion_Reset(&M16);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M17:
-        if (Motion_Run(&M17) == true)
-        {
-            Motion_Reset(&M17);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M18:
-        if (Motion_Run(&M18) == true)
-        {
-            Motion_Reset(&M18);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M19:
-        if (Motion_Run(&M19) == true)
-        {
-            Motion_Reset(&M19);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M20:
-        if (Motion_Run(&M20) == true)
-        {
-            Motion_Reset(&M20);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M21:
-        if (Motion_Run(&M21) == true)
-        {
-            Motion_Reset(&M21);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M24:
-        if (Motion_Run(&M24) == true)
-        {
-            Motion_Reset(&M24);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M26:
-        if (Motion_Run(&M26) == true)
-        {
-            Motion_Reset(&M26);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M28:
-        if (Motion_Run(&M28) == true)
-        {
-            Motion_Reset(&M28);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M31:
-        if (Motion_Run(&M31) == true)
-        {
-            Motion_Reset(&M31);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M32:
-        if (Motion_Run(&M32) == true)
-        {
-            Motion_Reset(&M32);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M33:
-        if (Motion_Run(&M33) == true)
-        {
-            Motion_Reset(&M33);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M34:
-        if (Motion_Run(&M34) == true)
-        {
-            Motion_Reset(&M34);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M37:
-        if (Motion_Run(&M37) == true)
-        {
-            Motion_Reset(&M37);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M38:
-        if (Motion_Run(&M38) == true)
-        {
-            Motion_Reset(&M38);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M46:
-        if (Motion_Run(&M46) == true)
-        {
-            Motion_Reset(&M46);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M49:
-        if (Motion_Run(&M49) == true)
-        {
-            Motion_Reset(&M49);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M61:
-        if (Motion_Run(&M61) == true)
-        {
-            Motion_Reset(&M61);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M64:
-        if (Motion_Run(&M64) == true)
-        {
-            Motion_Reset(&M64);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M65:
-        if (Motion_Run(&M65) == true)
-        {
-            Motion_Reset(&M65);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M67:
-        if (Motion_Run(&M67) == true)
-        {
-            Motion_Reset(&M67);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M70:
-        if (Motion_Run(&M70) == true)
-        {
-            Motion_Reset(&M70);
-            ActionNow = IDLE;
-        }
+    case 0x12: // å->è¶´
+        ActionNow = ACTION_SIT_TO_LIE;
         break;
 
-    case ACTION_M71:
-        if (Motion_Run(&M71) == true)
-        {
-            Motion_Reset(&M71);
-            ActionNow = IDLE;
-        }
+    case 0x13: // å->ç«™ç«‹
+        ActionNow = ACTION_SIT_TO_STAND;
         break;
 
-    case ACTION_M73:
-        if (Motion_Run(&M73) == true)
-        {
-            Motion_Reset(&M73);
-            ActionNow = IDLE;
-        }
+    case 0x21: // è¶´->å
+        ActionNow = ACTION_LIE_TO_SIT;
         break;
 
-    case ACTION_M75:
-        if (Motion_Run(&M75) == true)
-        {
-            Motion_Reset(&M75);
-            ActionNow = IDLE;
-        }
+    case 0x23: // è¶´->ç«™ç«‹
+        ActionNow = ACTION_LIE_TO_STAND;
         break;
-
-    case ACTION_M76:
-        if (Motion_Run(&M76) == true)
-        {
-            Motion_Reset(&M76);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M78:
-        if (Motion_Run(&M78) == true)
-        {
-            Motion_Reset(&M78);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M80:
-        if (Motion_Run(&M80) == true)
-        {
-            Motion_Reset(&M80);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M83:
-        if (Motion_Run(&M83) == true)
-        {
-            Motion_Reset(&M83);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M87:
-        if (Motion_Run(&M87) == true)
-        {
-            Motion_Reset(&M87);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M89:
-        if (Motion_Run(&M89) == true)
-        {
-            Motion_Reset(&M89);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M90:
-        if (Motion_Run(&M90) == true)
-        {
-            Motion_Reset(&M90);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M91:
-        if (Motion_Run(&M91) == true)
-        {
-            Motion_Reset(&M91);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M92:
-        if (Motion_Run(&M92) == true)
-        {
-            Motion_Reset(&M92);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M94:
-        if (Motion_Run(&M94) == true)
-        {
-            Motion_Reset(&M94);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M121:
-        if (Motion_Run(&M121) == true)
-        {
-            Motion_Reset(&M121);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M123:
-        if (Motion_Run(&M123) == true)
-        {
-            Motion_Reset(&M123);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M125:
-        if (Motion_Run(&M125) == true)
-        {
-            Motion_Reset(&M125);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M126:
-        if (Motion_Run(&M126) == true)
-        {
-            Motion_Reset(&M126);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M136:
-        if (Motion_Run(&M136) == true)
-        {
-            Motion_Reset(&M136);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M138:
-        if (Motion_Run(&M138) == true)
-        {
-            Motion_Reset(&M138);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M151:
-        if (Motion_Run(&M151) == true)
-        {
-            Motion_Reset(&M151);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M152:
-        if (Motion_Run(&M152) == true)
-        {
-            Motion_Reset(&M152);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M155:
-        if (Motion_Run(&M155) == true)
-        {
-            Motion_Reset(&M155);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M156:
-        if (Motion_Run(&M156) == true)
-        {
-            Motion_Reset(&M156);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M157:
-        if (Motion_Run(&M157) == true)
-        {
-            Motion_Reset(&M157);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M162:
-        if (Motion_Run(&M162) == true)
-        {
-            Motion_Reset(&M162);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M163:
-        if (Motion_Run(&M163) == true)
-        {
-            Motion_Reset(&M163);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M164:
-        if (Motion_Run(&M164) == true)
-        {
-            Motion_Reset(&M164);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M166:
-        if (Motion_Run(&M166) == true)
-        {
-            Motion_Reset(&M166);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M167:
-        if (Motion_Run(&M167) == true)
-        {
-            Motion_Reset(&M167);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M168:
-        if (Motion_Run(&M168) == true)
-        {
-            Motion_Reset(&M168);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M169:
-        if (Motion_Run(&M169) == true)
-        {
-            Motion_Reset(&M169);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M170:
-        if (Motion_Run(&M170) == true)
-        {
-            Motion_Reset(&M170);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M171:
-        if (Motion_Run(&M171) == true)
-        {
-            Motion_Reset(&M171);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M172:
-        if (Motion_Run(&M172) == true)
-        {
-            Motion_Reset(&M172);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M173:
-        if (Motion_Run(&M173) == true)
-        {
-            Motion_Reset(&M173);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M176:
-        if (Motion_Run(&M176) == true)
-        {
-            Motion_Reset(&M176);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M178:
-        if (Motion_Run(&M178) == true)
-        {
-            Motion_Reset(&M178);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M182:
-        if (Motion_Run(&M182) == true)
-        {
-            Motion_Reset(&M182);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M184:
-        if (Motion_Run(&M184) == true)
-        {
-            Motion_Reset(&M184);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M191:
-        if (Motion_Run(&M191) == true)
-        {
-            Motion_Reset(&M191);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M195:
-        if (Motion_Run(&M195) == true)
-        {
-            Motion_Reset(&M195);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M196:
-        if (Motion_Run(&M196) == true)
-        {
-            Motion_Reset(&M196);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M202:
-        if (Motion_Run(&M202) == true)
-        {
-            Motion_Reset(&M202);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M204:
-        if (Motion_Run(&M204) == true)
-        {
-            Motion_Reset(&M204);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M205:
-        if (Motion_Run(&M205) == true)
-        {
-            Motion_Reset(&M205);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M63:
-        if (Motion_Run(&M63) == true)
-        {
-            Motion_Reset(&M63);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M77:
-        if (Motion_Run(&M77) == true)
-        {
-            Motion_Reset(&M77);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M98:
-        if (Motion_Run(&M98) == true)
-        {
-            Motion_Reset(&M98);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M99:
-        if (Motion_Run(&M99) == true)
-        {
-            Motion_Reset(&M99);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M102:
-        if (Motion_Run(&M102) == true)
-        {
-            Motion_Reset(&M102);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M130:
-        if (Motion_Run(&M130) == true)
-        {
-            Motion_Reset(&M130);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M137:
-        if (Motion_Run(&M137) == true)
-        {
-            Motion_Reset(&M137);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M148:
-        if (Motion_Run(&M148) == true)
-        {
-            Motion_Reset(&M148);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M160:
-        if (Motion_Run(&M160) == true)
-        {
-            Motion_Reset(&M160);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M177:
-        if (Motion_Run(&M177) == true)
-        {
-            Motion_Reset(&M177);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case ACTION_M179:
-        if (Motion_Run(&M179) == true)
-        {
-            Motion_Reset(&M179);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M181:
-        if (Motion_Run(&M181) == true)
-        {
-            Motion_Reset(&M181);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M189:
-        if (Motion_Run(&M189) == true)
-        {
-            Motion_Reset(&M189);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M193:
-        if (Motion_Run(&M193) == true)
-        {
-            Motion_Reset(&M193);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M197:
-        if (Motion_Run(&M197) == true)
-        {
-            Motion_Reset(&M197);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M199:
-        if (Motion_Run(&M199) == true)
-        {
-            Motion_Reset(&M199);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M207:
-        if (Motion_Run(&M207) == true)
-        {
-            Motion_Reset(&M207);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_M210:
-        if (Motion_Run(&M210) == true)
-        {
-            Motion_Reset(&M210);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_MCRAWL_TO_SIT:
-        if (Motion_Run(&MCrawlToSit) == true)
-        {
-            Motion_Reset(&MCrawlToSit);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_MSIT_TO_CRAWL:
-        if (Motion_Run(&MSitToCrawl) == true)
-        {
-            Motion_Reset(&MSitToCrawl);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_MSIT_TO_STAND:
-        if (Motion_Run(&MSitToStand) == true)
-        {
-            Motion_Reset(&MSitToStand);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_MSTAND_TO_SIT:
-        if (Motion_Run(&MStandToSit) == true)
-        {
-            Motion_Reset(&MStandToSit);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_MSTAND_TO_CRAWL:
-        if (Motion_Run(&MStandToCrawl) == true)
-        {
-            Motion_Reset(&MStandToCrawl);
-            ActionNow = IDLE;
-        }
-        break;
-    case ACTION_MCRAWL_TO_STAND:
-        if (Motion_Run(&MCrawlToStand) == true)
-        {
-            Motion_Reset(&MCrawlToStand);
-            ActionNow = IDLE;
-        }
-        break;
-
-    case IDLE:
-
-		if(step_counter != 1)
-		{
-			Motion_Reset(motion_last);
-			Motion_Reset_Bezier(motion_ram_last);
-//			step_counter = 1;
-		}
-        ifStartAct = 0;
-		flag_sendExecuting = 0;
 
+    case 0x31: // ç«™ç«‹->å
+        ActionNow = ACTION_STAND_TO_SIT;
         break;
 
-    default:
+    case 0x32: // ç«™ç«‹->è¶´
+        ActionNow = ACTION_STAND_TO_LIE;
         break;
     }
 }
 
+void actionDoprepare()
+{
+	switch(actionPoseLast)
+	{
+		case POSE_SITTING:
+			if (Motion_Run(&MsittingInit) == true)
+        {
+            Motion_Reset(&MsittingInit); // å¤ä½ä½¿èƒ½è¯¥åŠ¨ä½œåº“ï¼Œè®©ä¸‹æ¬¡å†è§¦å‘
+        }
+		break;
+
+		case POSE_LYING:
+			if (Motion_Run(&MlyingInit) == true)
+        {
+            Motion_Reset(&MlyingInit); // å¤ä½ä½¿èƒ½è¯¥åŠ¨ä½œåº“ï¼Œè®©ä¸‹æ¬¡å†è§¦å‘
+        }
+		break;
+
+		case POSE_STANDING:
+			if (Motion_Run(&MstandingInit) == true)
+        {
+            Motion_Reset(&MstandingInit); // å¤ä½ä½¿èƒ½è¯¥åŠ¨ä½œåº“ï¼Œè®©ä¸‹æ¬¡å†è§¦å‘
+        }
+		break;
+	}
+	
+}
+
+extern uint8_t __t_count;
+uint8_t showActionFirstEnd = 0;
+
+// è¾…åŠ©å‡½æ•°: æ ¹æ® ACTION_STATE è·å–å¯¹åº”çš„ Motion_t æŒ‡é’ˆå’Œç›®æ ‡å§¿æ€
+static Motion_t *getMotionForAction(ACTION_STATE action, uint8_t *poseNext)
+{
+    *poseNext = POSE_SITTING; // é»˜è®¤
+    switch (action)
+    {
+    // ===== ç«™ç«‹å§¿æ€åŠ¨ä½œ =====
+    case ACTION_STAND_BOW:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_Stand_Bow;
+    case ACTION_STAND_DANCE1:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_Stand_Dance1;
+    case ACTION_STAND_DANCE2:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_Stand_Dance2;
+    case ACTION_STAND_STEPBACK:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_Stand_StepBack;
+    case ACTION_STAND_SALUTE:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_Stand_Salute;
+    case ACTION_STAND_BLOWKISS:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_Stand_BlowKiss;
+    case ACTION_STAND_DANCE3:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_Stand_Dance3;
+    case ACTION_STAND_HANDSHAKE:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_Stand_Handshake;
+    case ACTION_STAND_PRAY:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_Stand_Pray;
+
+    // ===== åå§¿æ€åŠ¨ä½œ =====
+    case ACTION_SIT_HANDSHAKE:
+        *poseNext = POSE_SITTING;
+        return (Motion_t *)&Motion_Sit_Handshake;
+    case ACTION_SIT_HELLO:
+        *poseNext = POSE_SITTING;
+        return (Motion_t *)&Motion_Sit_Hello;
+    case ACTION_SIT_STRETCH:
+        *poseNext = POSE_SITTING;
+        return (Motion_t *)&Motion_Sit_Stretch;
+    case ACTION_SIT_SHAKEHEAD:
+        *poseNext = POSE_SITTING;
+        return (Motion_t *)&Motion_Sit_ShakeHead;
+    case ACTION_SIT_CHEER:
+        *poseNext = POSE_SITTING;
+        return (Motion_t *)&Motion_Sit_Cheer;
+    case ACTION_SIT_YAWN:
+        *poseNext = POSE_SITTING;
+        return (Motion_t *)&Motion_Sit_Yawn;
+    case ACTION_SIT_DRUM:
+        *poseNext = POSE_SITTING;
+        return (Motion_t *)&Motion_Sit_Drum;
+    case ACTION_SIT_WASHFACE:
+        *poseNext = POSE_SITTING;
+        return (Motion_t *)&Motion_Sit_WashFace;
+
+    // ===== è¶´å§¿æ€åŠ¨ä½œ =====
+    case ACTION_LIE_WAGHIPS:
+        *poseNext = POSE_LYING;
+        return (Motion_t *)&Motion_Lie_WagHips;
+    case ACTION_LIE_PUSHUP:
+        *poseNext = POSE_LYING;
+        return (Motion_t *)&Motion_Lie_PushUp;
+    case ACTION_LIE_CRAWL:
+        *poseNext = POSE_LYING;
+        return (Motion_t *)&Motion_Lie_Crawl;
+
+    // ===== å§¿æ€åˆ‡æ¢ =====
+    case ACTION_SIT_TO_STAND:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_SitToStand;
+    case ACTION_STAND_TO_SIT:
+        *poseNext = POSE_SITTING;
+        return (Motion_t *)&Motion_StandToSit;
+    case ACTION_SIT_TO_LIE:
+        *poseNext = POSE_LYING;
+        return (Motion_t *)&Motion_SitToLie;
+    case ACTION_LIE_TO_SIT:
+        *poseNext = POSE_SITTING;
+        return (Motion_t *)&Motion_LieToSit;
+    case ACTION_LIE_TO_STAND:
+        *poseNext = POSE_STANDING;
+        return (Motion_t *)&Motion_LieToStand;
+    case ACTION_STAND_TO_LIE:
+        *poseNext = POSE_LYING;
+        return (Motion_t *)&Motion_StandToLie;
+
+    default:
+        return NULL;
+    }
+}
+
+void robotRun()
+{
+    // ç¤ºæ•™æ¨¡å¼å•ç‹¬å¤„ç†
+    if (ActionNow == ACTION_TEACH)
+    {
+        _Action_TEACH.motion[0].total_step = TEACH_TOTAL_STEP;
+        if (Motion_Run_Bezier(&_Action_TEACH) == true)
+            Motion_Reset_Bezier(&_Action_TEACH);
+        return;
+    }
+
+    // è·å–å½“å‰åŠ¨ä½œå¯¹åº”çš„ Motion_t æŒ‡é’ˆ
+    Motion_t *motion = getMotionForAction(ActionNow, &actionPoseNext);
+    if (motion == NULL)
+        return;
+
+    // ===== DEBUG: æ³¨é‡Šå§¿æ€æ£€æµ‹ï¼Œç›´æ¥æ‰§è¡ŒåŠ¨ä½œ =====
+//    // æ£€æŸ¥æ˜¯å¦éœ€è¦å§¿æ€åˆ‡æ¢
+//    if (actionPoseNext != actionPoseLast)
+//    {
+//        actionNeedReturn = 1;
+//        ActionLast = ActionNow;
+//        switchPose(actionPoseLast, actionPoseNext);
+//        return;
+//    }
+
+    // æ‰§è¡ŒåŠ¨ä½œ
+//    if (actionNeedReturn == 0)
+//    {
+        actionSwitchTime = ACTIONTIMESTEP;
+        if (Motion_Run(motion) == true)
+            Motion_Reset(motion);
+//    }
+}
 void TeachmodeRUN(void)
 {
-    // ÓÃÓÚÈı¸ö´®¿ÚÉÏµÄ¶æ»ú½øÈë×èÄáÄ£Ê½£¬Ò»°ãÔÚÊ¾½ÌÊ±Ê¹ÓÃ
+    // å°†ä¸Šä½æœºå‘è¿‡æ¥çš„åŠ¨ä½œå¤åˆ¶åˆ°RAMåŠ¨ä½œåº“ï¼ˆç¤ºæ•™æ¨¡å¼æ—¶ä½¿ç”¨ï¼‰
     if (Servo_Reset_Flag == 1)
     {
         Servo_Reset_Flag = 0;
     }
     if (TEACHMODE == 1)
     {
-        // Ê¾½ÌÄ£Ê½½áÊø£¬¸÷¸ö²ÎÊı¸´Î»
+        // ç¤ºæ•™æ¨¡å¼ï¼Œæ§åˆ¶æ‰€æœ‰èˆµæœºåˆ°ä½
         if (TEACH_FINISH == 1)
         {
-            /*Ê¾½Ì½áÊø*/
+            /*ç¤ºæ•™ç»“æŸ*/
             for (int i = 1; i <= 12; i++)
             {
                 goal_pos[i] = _Action_TEACH.motion[0].actions[1].servoAngles[i];
@@ -1500,56 +677,157 @@ void TeachmodeRUN(void)
             TEACH_FINISH = 0;
             TEACHMODE = 0;
 
-            /*ÓÃÓÚÁ¢¿Ì¸´ÏÖ¸Õ¸ÕµÄ¶¯×÷*/
+            /*é€šçŸ¥èˆµæœºå»æ‰§è¡Œåˆšæ‰çš„åŠ¨ä½œ*/
             ActionNowFlag = 0;
             Action_done[0] = 0;
             step_counter = 1;
             ActionNow = ACTION_TEACH;
 
-            /*ÓÃÓÚÏòÉÏÎ»»ú·¢ËÍÊı¾İ*/
+            /*è®¾ç½®èˆµæœºä½ç½®å¹¶é”ä½*/
             Action_Teachmode();
         }
     }
 }
 
+buzzerType buzzerWorking;
 extern uint8_t workflag;
+uint8_t rgbTimes;
+uint8_t buzzerTimes;
+uint8_t poseNow;
+
 void StartTaskHigh(void const *argument)
 {
-    User_Init();
+    User_Init_HIGH();
     for (;;)
     {
-		if(workflag == 1)
-		{
-			workflag = 2;
-			stateRobot.mode = MODE_NORMAL;
-			sendStateActive(&ph, stateRobot);//·¢ËÍÕı³£¹¤×÷Ä£Ê½£¬³õÊ¼»¯Íê³É
-		}
         osDelay(1);
     }
 }
 uint8_t OPEN = 1;
-
+uint8_t systemPowerOn = 0;
 void StartTaskMid(void const *argument)
 {
     for (;;)
     {
         if (TEACHMODE == 1)
             TeachmodeRUN();
-        else if (Init_OK == 1)
+        else if(personTeachFlag == 0)
             robotRun();
-        for (int i = 1; i <= 12; i++)
-            LookPos[i] = SERVO[i].pos_read;
-        if (OPEN == 1)
-            HAL_GPIO_WritePin(Servo_Power_GPIO_Port, Servo_Power_Pin, GPIO_PIN_SET); // ¶æ»ú¹©µç
-        else
-            HAL_GPIO_WritePin(Servo_Power_GPIO_Port, Servo_Power_Pin, GPIO_PIN_RESET); // ¶æ»ú¹©µç
+//		if(actionStop == 1)
+//		{
+//			Motion_Reset(motion_last);
+//			Motion_Reset_Bezier(motion_ram_last);
+//			actionPoseLast = motion_last->poseend;
+//		}
+		
+//        for (int i = 1; i <= 12; i++)
+//            LookPos[i] = SERVO[i].pos_read;
+//        if (OPEN == 1)
+//            HAL_GPIO_WritePin(Servo_Power_12V_GPIO_Port, Servo_Power_12V_Pin, GPIO_PIN_SET); // èˆµæœºä¸Šç”µ
+//        else
+//            HAL_GPIO_WritePin(Servo_Power_12V_GPIO_Port, Servo_Power_12V_Pin, GPIO_PIN_RESET); // èˆµæœºæ–­ç”µ
         osDelay(10);
     }
 }
+
+float tempTest;
+uint8_t writeAddress = 0;
+
+extern int16_t count_peopleTeach;
+uint8_t buzzerForPose;
+sevroParameter paraSevro_t;
+uint8_t countForCharging;
+uint8_t buzzerForcharging;
 void StartTaskLow(void const *argument)
 {
-    for (;;)
+	User_Init_LOW();
+	
+    for (;;) 
     {
-        osDelay(20);
+		
+//		if(count_peopleTeach > 0) count_peopleTeach--;
+//		
+//		if(count_peopleTeach == 0) personTeachFlag = 0;
+		
+		if(systemPowerOn == 0)
+		{
+			buzzerTimes = 3;
+			osDelay(1500);
+			systemPowerOn = 1;
+		}
+		paraSevro_t.headVerticalAng = getHorizontalAng();
+		paraSevro_t.headHorizontalAng = getVerticalAng();
+		
+		if(USER_ADC.bat_charging == 1 && buzzerForcharging == 0)
+		{
+			buzzerTimes = 5;
+			osDelay(2000);
+			rgbTimes = 10;
+			buzzerForcharging = 1;
+		}
+				
+//		tempTest = ds18b20_get_temperature();
+		
+		MPU_PoseGet();
+		poseNow = poseCheck();
+		if(poseNow == 4)
+		{
+			buzzerWorking.buzzerForpose = 1;
+			buzzerTimes = 6;
+		}
+		else buzzerWorking.buzzerForpose = 0;
+		
+		if(buzzerWorking.buzzerForcharge == 0 && buzzerWorking.buzzerForpose == 0) buzzerTimes = 0;
+		fanSet(ioState.fan);
+		
+        osDelay(10);
     }
+}
+
+uint8_t testReset = 0;
+int testangX;
+uint8_t uartTest_7 = 0;
+uint8_t data[3] = {0x00,0xbb,0xcc};
+uint8_t testFlagg = 0;
+int random_number_;
+uint8_t ttttt1 = 0;
+uint8_t ttttt2 = 0;
+void StartTask05(void const * argument)
+{
+//	osDelay(3500);
+  for(;;)
+  {
+	  if(testReset == 1)
+	  {
+		  SoftwareReset();
+	  }
+	  
+	  if(powerState_t == Shutdown)
+	  {
+		  osDelay(2000);
+		  if(USER_ADC.bat_volt > VOLTPOWERON)
+		  {
+			  HAL_GPIO_WritePin(upperComputerPower_5V_GPIO_Port,upperComputerPower_5V_Pin,GPIO_PIN_SET);//
+			  HAL_GPIO_WritePin(Servo_Power_12V_GPIO_Port,Servo_Power_12V_Pin,GPIO_PIN_SET);// èˆµæœºä¸Šç”µ
+		  }
+		  powerState_t = powerIdle;
+	  }
+	  if(testFlagg == 1)
+	  {
+					// éšæœºç”Ÿæˆæ•°
+		random_number_ = (rand()/10)%10 + 1;
+		  testFlagg = 0;
+	  }
+//	  printf("APP1!\r\n");
+	  //	RGB_Flash_InOneSecond(rgbTimes);
+//	BUZZER_Flash_InOneSecond(buzzerTimes);
+	  
+	  // æµ‹è¯•
+	  if(ttttt1 == 1) ledSet(LEDLIGHT_ON);
+	  else ledSet(LEDLIGHT_OFF);
+	  if(ttttt2 == 1) buzzerSet(BUZZER_ON);
+	  else buzzerSet(BUZZER_OFF);
+	  
+    osDelay(1000);
+  }
 }

@@ -2,164 +2,57 @@
 #define _user_tasks_h
 
 #include "main.h"
-
-// …œµÁ÷Æ∫Û ¥Úπ˛«∑£¨»‡—€æ¶£¨œ¥¡≥£¨≥‘∂´Œ˜£¨±»∞Æ–ƒ
+#include "time.h"
 
 typedef enum
 {
-    ACTION_TEACH = 0, //  æΩÃ
-    // 4.21
-    ACTION_WALK,           // 1 ◊ﬂ
-    ACTION_WAVE,           // 2 ª” ÷
-    ACTION_STANDUP,        // 3 ’æ
-    ACTION_SIT,            // 4 ◊¯
-    ACTION_SITTOEAT,       // 5 ◊¯◊≈≥‘∂´Œ˜
-    ACTION_HUG,            // 6 ”µ±ß
-    ACTION_LIEPRONE,       // 7 Œ‘
-    ACTION_BIGLIE,         // 8 ¥Û◊÷Ã…
-    ACTION_SIT2PRONE,      // 9 ◊¯->Œ‘
-    IDLE,                  // 10 ø’œ–
-    ACTION_HELLO,          // 11 ƒ„∫√
-    ACTION_ScratchHead,    // 12 ƒ”Õ∑
-    ACTION_Worship,        // 13 ∞›“ª∞›
-    ACTION_ShakeHead,      // 14 “°Õ∑
-    ACTION_Pouting,        // 15 æÔ∆®π…
-    ACTION_TurnThings,     // 16 ∑≠∂´Œ˜
-    ACTION_SleepTilt,      // 17 Õ·Õ∑ÀØæı
-    ACTION_WashFace,       // 18 œ¥¡≥
-    ACTION_SideLieScratch, // 19 ≤‡Ã…ƒ”—˜
-    ACTION_SitLegsOpen,    // 20 ø™Õ»◊¯
-    ACTION_StandToSit,     // 21 ’æ->◊¯
-    ACTION_SideLie,        // 22 ≤‡Ã…
-    ACTION_WagHips,        // 23 ≈§∆®π…
-    // 4.27
-    ACTION_HighFive,    // 24 ª˜’∆∂Ø◊˜
-    ACTION_HugKiss,     // 25 ª∑±ßkiss∂Ø◊˜
-    ACTION_Handshake,   // 26 Œ’ ÷∂Ø◊˜
-    ACTION_ScratchButt, // 27 ◊¯◊≈ ÷ƒ”∆®π…∂Ø◊˜
-    ACTION_Bow,         // 28 æœπ™∂Ø◊˜
-    ACTION_Cheer,       // 29 ª”±€º””Õ∂Ø◊˜
-    ACTION_DrawHeart,   // 30 ª≠∞Æ–ƒ∂Ø◊˜
-    ACTION_StompFoot,   // 31 ∆˛—¸∂ÂΩ≈∂Ø◊˜
-    ACTION_Drum,        // 32 ª˜πƒ∂Ø◊˜
-    ACTION_RubEyes,     // 33 »‡—€æ¶∂Ø◊˜
-    ACTION_Yawn,        // 34 ¥Úπ˛«∑∂Ø◊˜
-    ACTION_SitPatButt,  // 35 ◊¯◊≈æÔ\≈ƒ∆®π…∂Ø◊˜
+    // ===== Á§∫Êïô =====
+    ACTION_TEACH = 0, // Á§∫ÊïôÊ®°Âºè
 
-    ACTION_Eat,                 // 36 ≥‘∂´Œ˜
-    ACTION_Stretch,             // 37 ◊¯◊≈…Ï¿¡—¸
-    ACTION_StretchLying,        // 38 Ã…◊≈…Ï¿¡—¸
-    ACTION_WaveStanding,        // 39 ’æ¡¢ª” ÷
-    ACTION_ScratchButtStanding, // 40 ’æ¡¢ƒ”∆®π…
-    ACTION_SplitStanding,       // 41 ’æ¡¢≈¸≤Ê
-    ACTION_PatTummy,            // 42 µ• ÷≈ƒ∂«◊”
+    // ===== Á´ôÁ´ãÂßøÊÄÅÂä®‰Ωú (POSE_STANDING) =====
+    ACTION_STAND_BOW,       // 1  Èû†Ë∫¨
+    ACTION_STAND_DANCE1,    // 2  Ë∑≥Ëàû1
+    ACTION_STAND_DANCE2,    // 3  Ë∑≥Ëàû2
+    ACTION_STAND_STEPBACK,  // 4  ÂêéÈÄÄ
+    ACTION_STAND_SALUTE,    // 5  Êï¨Á§º
+    ACTION_STAND_BLOWKISS,  // 6  È£ûÂêª
+    ACTION_STAND_DANCE3,    // 7  Ë∑≥Ëàû3
+    ACTION_STAND_HANDSHAKE, // 8  Á´ôÁ´ãÊè°Êâã
+    ACTION_STAND_PRAY,      // 9  Êãú‰∏ÄÊãú
 
-    // 5.11≤π≥‰µƒ∂Ø◊˜
-    ACTION_M1,  // M1∂Ø◊˜43
-    ACTION_M3,  // M3∂Ø◊˜44
-    ACTION_M4,  // M4∂Ø◊˜45
-    ACTION_M5,  // M5∂Ø◊˜46
-    ACTION_M6,  // M6∂Ø◊˜47
-    ACTION_M7,  // M7∂Ø◊˜48
-    ACTION_M8,  // M8∂Ø◊˜49
-    ACTION_M10, // M10∂Ø◊˜50
-    ACTION_M11, // M11∂Ø◊˜51
-    ACTION_M14, // M14∂Ø◊˜52
-    ACTION_M16, // M16∂Ø◊˜53
-    ACTION_M17, // M17∂Ø◊˜54
-    ACTION_M18, // M18∂Ø◊˜55
-    ACTION_M19, // M19∂Ø◊˜56
-    ACTION_M20, // M20∂Ø◊˜57
-    ACTION_M21, // M21∂Ø◊˜58
-    ACTION_M24, // M24∂Ø◊˜59.
-    ACTION_M26, // M26∂Ø◊˜60
-    ACTION_M28, // M28∂Ø◊˜61.
-    ACTION_M31, // M31∂Ø◊˜62
-    ACTION_M32, // M32∂Ø◊˜63
-    ACTION_M33, // M33∂Ø◊˜64
-    ACTION_M34, // M34∂Ø◊˜65
-    ACTION_M37, // M37∂Ø◊˜66
-    ACTION_M38, // M38∂Ø◊˜67.
-    ACTION_M46, // M46∂Ø◊˜68
-    ACTION_M49, // M49∂Ø◊˜69
+    // ===== ÂùêÂßøÊÄÅÂä®‰Ωú (POSE_SITTING) =====
+    ACTION_SIT_HANDSHAKE, // 10 Êè°Êâã
+    ACTION_SIT_HELLO,     // 11 ÊâìÊãõÂëº
+    ACTION_SIT_STRETCH,   // 12 ‰º∏ÊáíËÖ∞
+    ACTION_SIT_SHAKEHEAD, // 13 ÊëáÂ§¥
+    ACTION_SIT_CHEER,     // 14 Âä†Ê≤π
+    ACTION_SIT_YAWN,      // 15 ÊâìÂìàÊ¨†
+    ACTION_SIT_DRUM,      // 16 ÊâìÈºì
+    ACTION_SIT_WASHFACE,  // 17 Ê¥óËÑ∏
 
-    // 5.14
-    ACTION_M61,  // M61∂Ø◊˜70
-    ACTION_M63,  // M63∂Ø◊˜71 °˚ –¬‘ˆ
-    ACTION_M64,  // M64∂Ø◊˜72
-    ACTION_M65,  // M65∂Ø◊˜73
-    ACTION_M67,  // M67∂Ø◊˜74
-    ACTION_M70,  // M70∂Ø◊˜75
-    ACTION_M71,  // M71∂Ø◊˜76
-    ACTION_M73,  // M73∂Ø◊˜77
-    ACTION_M75,  // M75∂Ø◊˜78
-    ACTION_M76,  // M76∂Ø◊˜79
-    ACTION_M77,  // M77∂Ø◊˜80 °˚ –¬‘ˆ
-    ACTION_M78,  // M78∂Ø◊˜81
-    ACTION_M80,  // M80∂Ø◊˜82
-    ACTION_M83,  // M83∂Ø◊˜83
-    ACTION_M87,  // M87∂Ø◊˜84
-    ACTION_M89,  // M89∂Ø◊˜85
-    ACTION_M90,  // M90∂Ø◊˜86
-    ACTION_M91,  // M91∂Ø◊˜87
-    ACTION_M92,  // M92∂Ø◊˜88
-    ACTION_M94,  // M94∂Ø◊˜89
-    ACTION_M98,  // M98∂Ø◊˜90 °˚ –¬‘ˆ
-    ACTION_M99,  // M99∂Ø◊˜91 °˚ –¬‘ˆ
-    ACTION_M102, // M102∂Ø◊˜92 °˚ –¬‘ˆ
-    ACTION_M121, // M121∂Ø◊˜93
-    ACTION_M123, // M123∂Ø◊˜94
-    ACTION_M125, // M125∂Ø◊˜95
-    ACTION_M126, // M126∂Ø◊˜96
-    ACTION_M130, // M130∂Ø◊˜97 °˚ –¬‘ˆ
-    ACTION_M136, // M136∂Ø◊˜98
-    ACTION_M137, // M137∂Ø◊˜99 °˚ –¬‘ˆ
-    ACTION_M138, // M138∂Ø◊˜100
-    ACTION_M148, // M148∂Ø◊˜101 °˚ –¬‘ˆ
-    ACTION_M151, // M151∂Ø◊˜102
-    ACTION_M152, // M152∂Ø◊˜103
-    ACTION_M155, // M155∂Ø◊˜104
-    ACTION_M156, // M156∂Ø◊˜105
-    ACTION_M157, // M157∂Ø◊˜106
-    ACTION_M160, // M160∂Ø◊˜107 °˚ –¬‘ˆ
-    ACTION_M162, // M162∂Ø◊˜108
-    ACTION_M163, // M163∂Ø◊˜109
-    ACTION_M164, // M164∂Ø◊˜110
-    ACTION_M166, // M166∂Ø◊˜111
-    ACTION_M167, // M167∂Ø◊˜112
-    ACTION_M168, // M168∂Ø◊˜113
-    ACTION_M169, // M169∂Ø◊˜114
-    ACTION_M170, // M170∂Ø◊˜115
-    ACTION_M171, // M171∂Ø◊˜116
-    ACTION_M172, // M172∂Ø◊˜117
-    ACTION_M173, // M173∂Ø◊˜118
-    ACTION_M176, // M176∂Ø◊˜119
-    ACTION_M177, // M177∂Ø◊˜120 °˚ –¬‘ˆ
-    ACTION_M178, // M178∂Ø◊˜121
-    ACTION_M182, // M182∂Ø◊˜122
-    ACTION_M184, // M184∂Ø◊˜123
-    ACTION_M191, // M191∂Ø◊˜124
-    ACTION_M195, // M195∂Ø◊˜125
-    ACTION_M196, // M196∂Ø◊˜126
-    ACTION_M202, // M202∂Ø◊˜127
-    ACTION_M204, // M204∂Ø◊˜128
-    ACTION_M205, // M205∂Ø◊˜129
-	
-    ACTION_M179, // M179∂Ø◊˜130
-    ACTION_M181, // M181∂Ø◊˜131
-    ACTION_M189, // M189∂Ø◊˜132
-    ACTION_M193, // M193∂Ø◊˜133
-    ACTION_M197, // M197∂Ø◊˜134
-    ACTION_M199, // M199∂Ø◊˜135
-    ACTION_M207, // M207∂Ø◊˜136
-    ACTION_M210, // M210∂Ø◊˜137
-    ACTION_MCRAWL_TO_SIT,    // ≈ø->◊¯ ∂Ø◊˜138
-    ACTION_MSIT_TO_CRAWL,    // ◊¯->≈ø ∂Ø◊˜139
-    ACTION_MSIT_TO_STAND,    // ◊¯->’æ ∂Ø◊˜140
-    ACTION_MSTAND_TO_SIT,    // ’æ->◊¯ ∂Ø◊˜141
-    ACTION_MSTAND_TO_CRAWL,  // ’æ->≈ø ∂Ø◊˜142
-    ACTION_MCRAWL_TO_STAND,  // ≈ø->’æ ∂Ø◊˜143
+    // ===== Ë∂¥ÂßøÊÄÅÂä®‰Ωú (POSE_LYING) =====
+    ACTION_LIE_WAGHIPS, // 18 Êâ≠Â±ÅËÇ°
+    ACTION_LIE_PUSHUP,  // 19 ‰øØÂçßÊíë
+    ACTION_LIE_CRAWL,   // 20 Áà¨Ë°å
+
+    // ===== ÂßøÊÄÅÂàáÊç¢ =====
+    ACTION_SIT_TO_STAND, // 21 Âùê->Á´ôÁ´ã
+    ACTION_STAND_TO_SIT, // 22 Á´ôÁ´ã->Âùê
+    ACTION_SIT_TO_LIE,   // 23 Âùê->Ë∂¥
+    ACTION_LIE_TO_SIT,   // 24 Ë∂¥->Âùê
+    ACTION_LIE_TO_STAND, // 25 Ë∂¥->Á´ôÁ´ã
+    ACTION_STAND_TO_LIE, // 26 Á´ôÁ´ã->Ë∂¥
+
+    // ===== Á≥ªÁªüÁä∂ÊÄÅ =====
+    IDLE, // 27 Á©∫Èó≤
 } ACTION_STATE;
+
+typedef struct
+{
+    uint8_t buzzerForvoltage;
+    uint8_t buzzerForcharge;
+    uint8_t buzzerForpose;
+} buzzerType;
 
 void ActionRUN(void);
 void TeachmodeRUN(void);

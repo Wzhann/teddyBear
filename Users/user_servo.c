@@ -1,17 +1,20 @@
+// claude
 #include "user_servo.h"
 #include "stdio.h"
 #include "string.h"
 
-// ¿ØÖÆ°åÉÏÃæµÄ×óÍÈ¡¢ÓÒÍÈÊÇÏà·´µÄ
+// æ§åˆ¶æ¿ä¸Šé¢çš„å·¦è…¿ã€å³è…¿æ˜¯ç›¸åçš„
 USART_SERVO_TYPEDEF USART_LEG1 = {0};	   // usart1
 USART_SERVO_TYPEDEF USART_LEG2 = {0};	   // usart1
 USART_SERVO_TYPEDEF USART_LEG3 = {0};	   // usart2
 USART_SERVO_TYPEDEF USART_LEG4 = {0};	   // usart2
-USART_SERVO_TYPEDEF USART_RIGHT_LEG = {0}; // ÓÒ±ßÍÈ ID:1 - 6 usart1
-USART_SERVO_TYPEDEF USART_LEFT_LEG = {0};  // ×ó±ßÍÈ ID: 7 - 12 usart2
-USART_SERVO_TYPEDEF USART_HEAD = {0};	   // ×ó±ßÍÈ ID: 13 - 14 usart3
+USART_SERVO_TYPEDEF USART_RIGHT_LEG = {0}; // å³è¾¹è…¿ ID:1 - 5 usart1
+USART_SERVO_TYPEDEF USART_LEFT_LEG = {0};  // å·¦è¾¹è…¿ ID: 6 - 10 usart2
+USART_SERVO_TYPEDEF USART_HEAD = {0};	   // å¤´ ID:12
+USART_SERVO_TYPEDEF USART_NECK = {0};	   // è„–å­ ID:11
 
 SERVO_INFO_TYPEDEF SERVO[14] = {0};
+int16_t servo_pos[14] = {0};	// èˆµæœºè§’åº¦å€¼é•œåƒæ•°ç»„ï¼Œæ–¹ä¾¿watchçª—å£æŸ¥çœ‹
 
 uint8_t SERVO_COMM_BUSY = 0;
 extern int16_t ang_goal[15];
@@ -19,10 +22,10 @@ extern int16_t ang_goal[15];
 int16_t goal_pos[15] = {0};	  // FEETECH POS GOAL
 int16_t goal_speed[15] = {0}; // FEETECH SPEED GOAL
 int16_t goal_ms[15] = {0};	  // FEETECH MS GOAL
-// ËÅ·ş¶æ»ú³õÊ¼»¯
+// ä¼ºæœèˆµæœºåˆå§‹åŒ–
 void User_ServoInit(void)
 {
-	// ¸÷×é¶æ»ú¶ÔÓ¦´®¿Ú
+	// å„ç»„èˆµæœºå¯¹åº”ä¸²å£
 	USART_LEG1.p_usart_n = &huart1;
 	USART_LEG1.p_hdma_usart_n_rx = &hdma_usart1_rx;
 	USART_LEG2.p_usart_n = &huart1;
@@ -31,14 +34,17 @@ void User_ServoInit(void)
 	USART_LEG3.p_hdma_usart_n_rx = &hdma_usart2_rx;
 	USART_LEG4.p_usart_n = &huart2;
 	USART_LEG4.p_hdma_usart_n_rx = &hdma_usart2_rx;
+
 	USART_LEFT_LEG.p_usart_n = &huart1;
 	USART_LEFT_LEG.p_hdma_usart_n_rx = &hdma_usart1_rx;
 	USART_RIGHT_LEG.p_usart_n = &huart2;
 	USART_RIGHT_LEG.p_hdma_usart_n_rx = &hdma_usart2_rx;
 	USART_HEAD.p_usart_n = &huart3;
 	USART_HEAD.p_hdma_usart_n_rx = &hdma_usart3_rx;
+	USART_NECK.p_usart_n = &huart5;
+	USART_NECK.p_hdma_usart_n_rx = &hdma_uart5_rx;
 
-	// ¸÷¸öËÅ·ş¶æ»úµÄ³õÊ¼ĞÅÏ¢£¨ËÙ¶È¡¢Î»ÖÃ¡¢Ê±¼ä£©
+	// å„ä¸ªä¼ºæœèˆµæœºçš„åˆå§‹ä¿¡æ¯ï¼ˆé€Ÿåº¦ã€ä½ç½®ã€æ—¶é—´ï¼‰
 	for (int i = 0; i <= 12; i++)
 	{
 		goal_speed[i] = 2000;
@@ -46,6 +52,7 @@ void User_ServoInit(void)
 		goal_ms[i] = 0;
 	}
 
+	goal_speed[11] = 3000;
 	goal_pos[1] = 0;
 	goal_pos[2] = 0;
 	goal_pos[3] = 0;
@@ -64,7 +71,7 @@ void User_ServoInit(void)
 	for (int i = 0; i <= 14; i++)
 		SERVO[i].zero_ang = 0;
 
-	// Æô¶¯¿ÕÏĞÖĞ¶Ï½ÓÊÕ
+	// å¯åŠ¨ç©ºé—²ä¸­æ–­æ¥æ”¶
 	__HAL_UART_ENABLE_IT(USART_LEFT_LEG.p_usart_n, UART_IT_IDLE);
 	HAL_UART_Receive_DMA(USART_LEFT_LEG.p_usart_n, (uint8_t *)USART_LEFT_LEG.usart_rx_buf, USART_SERVO_RX_SIZE);
 
@@ -73,65 +80,150 @@ void User_ServoInit(void)
 
 	__HAL_UART_ENABLE_IT(USART_HEAD.p_usart_n, UART_IT_IDLE);
 	HAL_UART_Receive_DMA(USART_HEAD.p_usart_n, (uint8_t *)USART_HEAD.usart_rx_buf, USART_SERVO_RX_SIZE);
+
+	__HAL_UART_ENABLE_IT(USART_NECK.p_usart_n, UART_IT_IDLE);
+	HAL_UART_Receive_DMA(USART_NECK.p_usart_n, (uint8_t *)USART_NECK.usart_rx_buf, USART_SERVO_RX_SIZE);
+	//	HAL_Delay(100);
 }
-// ´®¿Ú¿ÕÏĞÖĞ¶Ï½ÓÊÕ
+// ä¸²å£ç©ºé—²ä¸­æ–­æ¥æ”¶
 void User_ServoLegRIGHT_IRQHandler(void)
 {
-	if (RESET != __HAL_UART_GET_FLAG(USART_RIGHT_LEG.p_usart_n, UART_FLAG_IDLE)) // ¼ì²éUARTµÄ¿ÕÏĞÖĞ¶Ï±êÖ¾Î»ÊÇ·ñ±»ÖÃÎ»
+	if (RESET != __HAL_UART_GET_FLAG(USART_RIGHT_LEG.p_usart_n, UART_FLAG_IDLE)) // æ£€æŸ¥UARTçš„ç©ºé—²ä¸­æ–­æ ‡å¿—ä½æ˜¯å¦è¢«ç½®ä½
 	{
-		__HAL_UART_CLEAR_IDLEFLAG(USART_RIGHT_LEG.p_usart_n);														   // Çå³ıÖĞ¶Ï±êÖ¾Î»£¬·ÀÖ¹ÖØ¸´´¥·¢ÖĞ¶Ï
-		HAL_UART_DMAStop(USART_RIGHT_LEG.p_usart_n);																   // ÖÕÖ¹µ±Ç°DMA´«Êä£¬È·±£ºóĞø²Ù×÷£¨Èç¼ÆËãÊı¾İ³¤¶È£©µÄ×¼È·ĞÔ
-		USART_RIGHT_LEG.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_RIGHT_LEG.p_hdma_usart_n_rx);  // ¼ÆËãÊµ¼Ê½ÓÊÕ³¤¶È
-		User_UsartServoDataParas(&USART_RIGHT_LEG);																	   // ½âÎöÊı¾İ
-		HAL_UART_Receive_DMA(USART_RIGHT_LEG.p_usart_n, (uint8_t *)USART_RIGHT_LEG.usart_rx_buf, USART_SERVO_RX_SIZE); // ÖØÆôDMA½ÓÊÕ
+		__HAL_UART_CLEAR_IDLEFLAG(USART_RIGHT_LEG.p_usart_n);														   // æ¸…é™¤ä¸­æ–­æ ‡å¿—ä½ï¼Œé˜²æ­¢é‡å¤è§¦å‘ä¸­æ–­
+		HAL_UART_DMAStop(USART_RIGHT_LEG.p_usart_n);																   // ç»ˆæ­¢å½“å‰DMAä¼ è¾“ï¼Œç¡®ä¿åç»­æ“ä½œï¼ˆå¦‚è®¡ç®—æ•°æ®é•¿åº¦ï¼‰çš„å‡†ç¡®æ€§
+		USART_RIGHT_LEG.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_RIGHT_LEG.p_hdma_usart_n_rx);  // è®¡ç®—å®é™…æ¥æ”¶é•¿åº¦
+		User_UsartServoDataParas(&USART_RIGHT_LEG);																	   // è§£ææ•°æ®
+		HAL_UART_Receive_DMA(USART_RIGHT_LEG.p_usart_n, (uint8_t *)USART_RIGHT_LEG.usart_rx_buf, USART_SERVO_RX_SIZE); // é‡å¯DMAæ¥æ”¶
 	}
 }
 void User_ServoLegLEFT_IRQHandler(void)
 {
-	if (RESET != __HAL_UART_GET_FLAG(USART_LEFT_LEG.p_usart_n, UART_FLAG_IDLE)) // ¼ì²éUARTµÄ¿ÕÏĞÖĞ¶Ï±êÖ¾Î»ÊÇ·ñ±»ÖÃÎ»
+	if (RESET != __HAL_UART_GET_FLAG(USART_LEFT_LEG.p_usart_n, UART_FLAG_IDLE)) // æ£€æŸ¥UARTçš„ç©ºé—²ä¸­æ–­æ ‡å¿—ä½æ˜¯å¦è¢«ç½®ä½
 	{
-		__HAL_UART_CLEAR_IDLEFLAG(USART_LEFT_LEG.p_usart_n);														 // Çå³ıÖĞ¶Ï±êÖ¾Î»£¬·ÀÖ¹ÖØ¸´´¥·¢ÖĞ¶Ï
-		HAL_UART_DMAStop(USART_LEFT_LEG.p_usart_n);																	 // ÖÕÖ¹µ±Ç°DMA´«Êä£¬È·±£ºóĞø²Ù×÷£¨Èç¼ÆËãÊı¾İ³¤¶È£©µÄ×¼È·ĞÔ
-		USART_LEFT_LEG.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_LEFT_LEG.p_hdma_usart_n_rx);	 // ¼ÆËãÊµ¼Ê½ÓÊÕ³¤¶È
-		User_UsartServoDataParas(&USART_LEFT_LEG);																	 // ½âÎöÊı¾İ
-		HAL_UART_Receive_DMA(USART_LEFT_LEG.p_usart_n, (uint8_t *)USART_LEFT_LEG.usart_rx_buf, USART_SERVO_RX_SIZE); // ÖØÆôDMA½ÓÊÕ
+		__HAL_UART_CLEAR_IDLEFLAG(USART_LEFT_LEG.p_usart_n);														 // æ¸…é™¤ä¸­æ–­æ ‡å¿—ä½ï¼Œé˜²æ­¢é‡å¤è§¦å‘ä¸­æ–­
+		HAL_UART_DMAStop(USART_LEFT_LEG.p_usart_n);																	 // ç»ˆæ­¢å½“å‰DMAä¼ è¾“ï¼Œç¡®ä¿åç»­æ“ä½œï¼ˆå¦‚è®¡ç®—æ•°æ®é•¿åº¦ï¼‰çš„å‡†ç¡®æ€§
+		USART_LEFT_LEG.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_LEFT_LEG.p_hdma_usart_n_rx);	 // è®¡ç®—å®é™…æ¥æ”¶é•¿åº¦
+		User_UsartServoDataParas(&USART_LEFT_LEG);																	 // è§£ææ•°æ®
+		HAL_UART_Receive_DMA(USART_LEFT_LEG.p_usart_n, (uint8_t *)USART_LEFT_LEG.usart_rx_buf, USART_SERVO_RX_SIZE); // é‡å¯DMAæ¥æ”¶
 	}
 }
 void User_ServoHead_IRQHandler(void)
 {
-	if (RESET != __HAL_UART_GET_FLAG(USART_HEAD.p_usart_n, UART_FLAG_IDLE)) // ¼ì²éUARTµÄ¿ÕÏĞÖĞ¶Ï±êÖ¾Î»ÊÇ·ñ±»ÖÃÎ»
+	if (RESET != __HAL_UART_GET_FLAG(USART_HEAD.p_usart_n, UART_FLAG_IDLE)) // æ£€æŸ¥UARTçš„ç©ºé—²ä¸­æ–­æ ‡å¿—ä½æ˜¯å¦è¢«ç½®ä½
 	{
-		__HAL_UART_CLEAR_IDLEFLAG(USART_HEAD.p_usart_n);													 // Çå³ıÖĞ¶Ï±êÖ¾Î»
-		HAL_UART_DMAStop(USART_HEAD.p_usart_n);																 // ÖÕÖ¹µ±Ç°DMA´«Êä£¬È·±£ºóĞø²Ù×÷£¨Èç¼ÆËãÊı¾İ³¤¶È£©µÄ×¼È·ĞÔ
-		USART_HEAD.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_HEAD.p_hdma_usart_n_rx);	 // ¼ÆËãÊµ¼Ê½ÓÊÕ³¤¶È
-		User_UsartServoDataParas(&USART_HEAD);																 // ½âÎöÊı¾İ
-		HAL_UART_Receive_DMA(USART_HEAD.p_usart_n, (uint8_t *)USART_HEAD.usart_rx_buf, USART_SERVO_RX_SIZE); // ÖØÆôDMA½ÓÊÕ
+		__HAL_UART_CLEAR_IDLEFLAG(USART_HEAD.p_usart_n);													 // æ¸…é™¤ä¸­æ–­æ ‡å¿—ä½
+		HAL_UART_DMAStop(USART_HEAD.p_usart_n);																 // ç»ˆæ­¢å½“å‰DMAä¼ è¾“ï¼Œç¡®ä¿åç»­æ“ä½œï¼ˆå¦‚è®¡ç®—æ•°æ®é•¿åº¦ï¼‰çš„å‡†ç¡®æ€§
+		USART_HEAD.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_HEAD.p_hdma_usart_n_rx);	 // è®¡ç®—å®é™…æ¥æ”¶é•¿åº¦
+		User_UsartServoDataParas(&USART_HEAD);																 // è§£ææ•°æ®
+		HAL_UART_Receive_DMA(USART_HEAD.p_usart_n, (uint8_t *)USART_HEAD.usart_rx_buf, USART_SERVO_RX_SIZE); // é‡å¯DMAæ¥æ”¶
 	}
 }
-// ¶æ»ú·µ»ØÊı¾İ½âÎö
+void User_ServoNECK_IRQHandler(void)
+{
+	if (RESET != __HAL_UART_GET_FLAG(USART_NECK.p_usart_n, UART_FLAG_IDLE)) // æ£€æŸ¥UARTçš„ç©ºé—²ä¸­æ–­æ ‡å¿—ä½æ˜¯å¦è¢«ç½®ä½
+	{
+		__HAL_UART_CLEAR_IDLEFLAG(USART_NECK.p_usart_n);													 // æ¸…é™¤ä¸­æ–­æ ‡å¿—ä½
+		HAL_UART_DMAStop(USART_NECK.p_usart_n);																 // ç»ˆæ­¢å½“å‰DMAä¼ è¾“ï¼Œç¡®ä¿åç»­æ“ä½œï¼ˆå¦‚è®¡ç®—æ•°æ®é•¿åº¦ï¼‰çš„å‡†ç¡®æ€§
+		USART_NECK.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_NECK.p_hdma_usart_n_rx);	 // è®¡ç®—å®é™…æ¥æ”¶é•¿åº¦
+		User_UsartServoDataParas(&USART_NECK);																 // è§£ææ•°æ®
+		HAL_UART_Receive_DMA(USART_NECK.p_usart_n, (uint8_t *)USART_NECK.usart_rx_buf, USART_SERVO_RX_SIZE); // é‡å¯DMAæ¥æ”¶
+	}
+}
+
+// èˆµæœºè¿”å›æ•°æ®è§£æ
 void User_UsartServoDataParas(USART_SERVO_TYPEDEF *p_usart_servo_x)
 {
 	uint8_t i = 0;
 	uint8_t sum = 0;
+	uint8_t servo_id;
+
+	// æœ€å°æœ‰æ•ˆå¸§é•¿: å¸§å¤´(2) + ID(1) + é•¿åº¦(1) + é”™è¯¯(1) + æ ¡éªŒå’Œ(1) = 6å­—èŠ‚
+	if (p_usart_servo_x->rx_data_len < 6)
+		return;
 
 	for (i = 2; i < p_usart_servo_x->rx_data_len - 1; i++)
 	{
 		sum += p_usart_servo_x->usart_rx_buf[i];
-		sum %= 256;
 	}
-	sum %= 256;
 	sum = ~sum;
-	if ((p_usart_servo_x->usart_rx_buf[0] == 0xFF) && (p_usart_servo_x->usart_rx_buf[1] == 0xFF) && (p_usart_servo_x->usart_rx_buf[4] == 0x00) && (p_usart_servo_x->usart_rx_buf[i] == sum))
+
+	servo_id = p_usart_servo_x->usart_rx_buf[2];
+	// èˆµæœºIDè¾¹ç•Œæ£€æŸ¥: æœ‰æ•ˆèŒƒå›´ 0-13 (SERVOæ•°ç»„å¤§å°14)
+	if (servo_id >= 14)
+		return;
+
+	//	if ((p_usart_servo_x->usart_rx_buf[0] == 0xFF) && (p_usart_servo_x->usart_rx_buf[1] == 0xFF)
+	//		&& (p_usart_servo_x->usart_rx_buf[4] == 0x00) && (p_usart_servo_x->usart_rx_buf[i] == sum))
+	if ((p_usart_servo_x->usart_rx_buf[0] == 0xFF) && (p_usart_servo_x->usart_rx_buf[1] == 0xFF) && (p_usart_servo_x->usart_rx_buf[3] == 12) && (p_usart_servo_x->usart_rx_buf[i] == sum))
 	{
-		SERVO[p_usart_servo_x->usart_rx_buf[2]].pos_read = (p_usart_servo_x->usart_rx_buf[5] + (((int16_t)p_usart_servo_x->usart_rx_buf[6]) << 8)) - SERVO[p_usart_servo_x->usart_rx_buf[2]].zero_ang - 2048;
-		SERVO[p_usart_servo_x->usart_rx_buf[2]].speed_read = p_usart_servo_x->usart_rx_buf[7] + (((int16_t)p_usart_servo_x->usart_rx_buf[8]) << 8);
-		SERVO[p_usart_servo_x->usart_rx_buf[2]].power_read = p_usart_servo_x->usart_rx_buf[9] + (((int16_t)p_usart_servo_x->usart_rx_buf[10]) << 8);
-		SERVO[p_usart_servo_x->usart_rx_buf[2]].volt_read = p_usart_servo_x->usart_rx_buf[11];
-		SERVO[p_usart_servo_x->usart_rx_buf[2]].temper_read = p_usart_servo_x->usart_rx_buf[12];
+		SERVO[servo_id].pos_read = (p_usart_servo_x->usart_rx_buf[5] + (((int16_t)p_usart_servo_x->usart_rx_buf[6]) << 8)) - SERVO[servo_id].zero_ang - 2048;
+		servo_pos[servo_id] = SERVO[servo_id].pos_read;	// åŒæ­¥æ›´æ–°é•œåƒæ•°ç»„
+		SERVO[servo_id].speed_read = p_usart_servo_x->usart_rx_buf[7] + (((int16_t)p_usart_servo_x->usart_rx_buf[8]) << 8);
+		SERVO[servo_id].power_read = p_usart_servo_x->usart_rx_buf[9] + (((int16_t)p_usart_servo_x->usart_rx_buf[10]) << 8);
+		SERVO[servo_id].volt_read = p_usart_servo_x->usart_rx_buf[11];
+		SERVO[servo_id].temper_read = p_usart_servo_x->usart_rx_buf[12];
+		SERVO[servo_id].AsynchronousWriteFlag = p_usart_servo_x->usart_rx_buf[13];
+		SERVO[servo_id].servoStatus = p_usart_servo_x->usart_rx_buf[14];
+
+		//		SERVO[servo_id].temper_read = p_usart_servo_x->usart_rx_buf[5];
 	}
 }
 
-// ¶æ»ú½Ç¶ÈĞ´Èëº¯Êı£¨WRITE DATA£©
+void RECOVERY_0_FEETECH(uint8_t servo_id)
+{
+	uint8_t i = 0;
+	uint8_t sum = 0;
+	USART_SERVO_TYPEDEF *p_usart_servo_x;
+	switch (servo_id)
+	{
+	case 1:
+	case 2:
+	case 3:
+		p_usart_servo_x = &USART_LEG1;
+		break;
+	case 4:
+	case 5:
+		p_usart_servo_x = &USART_LEG2;
+		break;
+	case 6:
+	case 7:
+	case 8:
+		p_usart_servo_x = &USART_LEG3;
+		break;
+	case 9:
+	case 10:
+		p_usart_servo_x = &USART_LEG4;
+		break;
+	case 11:
+		p_usart_servo_x = &USART_NECK;
+		break;
+	case 12:
+		p_usart_servo_x = &USART_HEAD;
+		break;
+	default:
+		break;
+	}
+	p_usart_servo_x->usart_tx_buf[0] = 0xFF;	 // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[1] = 0xFF;	 // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[2] = servo_id; // èˆµæœºIDå·
+	p_usart_servo_x->usart_tx_buf[3] = 02;		 // æ•°æ®åŒ…æœ‰æ•ˆæ•°æ®é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[4] = 0x06;	 // å†™æŒ‡ä»¤
+												 //	p_usart_servo_x->usart_tx_buf[5] = 0x00;
+												 //	p_usart_servo_x->usart_tx_buf[6] = 0x00;
+	sum = 0;
+	for (i = 2; i <= 4; i++)
+	{
+		sum += p_usart_servo_x->usart_tx_buf[i];
+	}
+	sum %= 256;
+	sum = ~sum;
+	p_usart_servo_x->usart_tx_buf[5] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
+	if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+		HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 6);
+}
+
+// èˆµæœºè§’åº¦å†™å…¥å‡½æ•°ï¼ˆWRITE DATAï¼‰
 void FEETECH_UsartSetServoPos(uint8_t servo_id, int16_t pos, uint16_t ms, int16_t speed)
 {
 	uint8_t i = 0;
@@ -140,46 +232,48 @@ void FEETECH_UsartSetServoPos(uint8_t servo_id, int16_t pos, uint16_t ms, int16_
 
 	switch (servo_id)
 	{
-	case 1:;
-	case 2:;
+	case 1:
+	case 2:
 	case 3:
 		p_usart_servo_x = &USART_LEG1;
 		break;
-	case 4:;
-	case 5:;
+	case 4:
+	case 5:
 	case 6:
 		p_usart_servo_x = &USART_LEG2;
 		break;
-	case 7:;
-	case 8:;
+	case 7:
+	case 8:
 	case 9:
 		p_usart_servo_x = &USART_LEG3;
 		break;
-	case 10:;
-	case 11:;
+	case 10:
+	case 11:
 	case 12:
 		p_usart_servo_x = &USART_LEG4;
 		break;
-	case 13:;
-	case 14:
+	case 13:
 		p_usart_servo_x = &USART_HEAD;
+		break;
+	case 14:
+		p_usart_servo_x = &USART_NECK;
 		break;
 	default:
 		break;
 	}
 
-	p_usart_servo_x->usart_tx_buf[0] = 0xFF;		  // Ö¡Í·
-	p_usart_servo_x->usart_tx_buf[1] = 0xFF;		  // Ö¡Í·
-	p_usart_servo_x->usart_tx_buf[2] = servo_id;	  // ¶æ»úIDºÅ
-	p_usart_servo_x->usart_tx_buf[3] = 0x09;		  // Êı¾İ°üÓĞĞ§Êı¾İ³¤¶È
-	p_usart_servo_x->usart_tx_buf[4] = 0x03;		  // Ğ´Ö¸Áî
-	p_usart_servo_x->usart_tx_buf[5] = 0x2A;		  // ¿ØÖÆ±íÀïÄ¿±êÎ»ÖÃµÄÊ×µØÖ·
-	p_usart_servo_x->usart_tx_buf[6] = pos & 0xff;	  // ¶æ»úÄ¿±êÎ»ÖÃ µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[7] = pos >> 8;	  // ¶æ»úÄ¿±êÎ»ÖÃ ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[8] = ms & 0xff;	  // ¶æ»úÄ¿±êÊ±¼ä µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[9] = ms >> 8;		  // ¶æ»úÄ¿±êÊ±¼ä ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[10] = speed & 0xff; // ¶æ»úÄ¿±êËÙ¶È ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[11] = speed >> 8;	  // ¶æ»úÄ¿±êËÙ¶È µÍ8Î»
+	p_usart_servo_x->usart_tx_buf[0] = 0xFF;		  // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[1] = 0xFF;		  // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[2] = servo_id;	  // èˆµæœºIDå·
+	p_usart_servo_x->usart_tx_buf[3] = 0x09;		  // æ•°æ®åŒ…æœ‰æ•ˆæ•°æ®é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[4] = 0x03;		  // å†™æŒ‡ä»¤
+	p_usart_servo_x->usart_tx_buf[5] = 0x2A;		  // æ§åˆ¶è¡¨é‡Œç›®æ ‡ä½ç½®çš„é¦–åœ°å€
+	p_usart_servo_x->usart_tx_buf[6] = pos & 0xff;	  // èˆµæœºç›®æ ‡ä½ç½® ä½8ä½
+	p_usart_servo_x->usart_tx_buf[7] = pos >> 8;	  // èˆµæœºç›®æ ‡ä½ç½® é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[8] = ms & 0xff;	  // èˆµæœºç›®æ ‡æ—¶é—´ ä½8ä½
+	p_usart_servo_x->usart_tx_buf[9] = ms >> 8;		  // èˆµæœºç›®æ ‡æ—¶é—´ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[10] = speed & 0xff; // èˆµæœºç›®æ ‡é€Ÿåº¦ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[11] = speed >> 8;	  // èˆµæœºç›®æ ‡é€Ÿåº¦ ä½8ä½
 
 	sum = 0;
 	for (i = 2; i <= 11; i++)
@@ -188,12 +282,149 @@ void FEETECH_UsartSetServoPos(uint8_t servo_id, int16_t pos, uint16_t ms, int16_
 	}
 	sum %= 256;
 	sum = ~sum;
-	p_usart_servo_x->usart_tx_buf[12] = sum; // Êı¾İ°üĞ£ÑéºÍ£¨¶Ô0µ½n-1µÄ×Ö½ÚÊı¾İÇóºÍ£¬È»ºó¸ú256È¡ÓàÊı£©
+	p_usart_servo_x->usart_tx_buf[12] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
 
-	HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 13);
+	if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+		HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 13);
 }
 
-// ¶æ»ú½Ç¶ÈÍ¬²½Ğ´Èëº¯Êı£¨SYNC WRITE£©¡ª¡ªHEAD
+void FEETECH_UsartSetServo(uint8_t servo_id, uint8_t address, uint8_t len, int value)
+{
+	uint8_t i = 0;
+	uint8_t sum = 0;
+	USART_SERVO_TYPEDEF *p_usart_servo_x;
+	switch (servo_id)
+	{
+	case 1:
+	case 2:
+	case 3:
+		p_usart_servo_x = &USART_LEG1;
+		break;
+	case 4:
+	case 5:
+		p_usart_servo_x = &USART_LEG2;
+		break;
+	case 6:
+	case 7:
+	case 8:
+		p_usart_servo_x = &USART_LEG3;
+		break;
+	case 9:
+	case 10:
+		p_usart_servo_x = &USART_LEG4;
+		break;
+	case 11:
+		p_usart_servo_x = &USART_NECK;
+		break;
+	case 12:
+		p_usart_servo_x = &USART_HEAD;
+		break;
+	default:
+		break;
+	}
+	// p_usart_servo_x = &USART_LEG3;
+	p_usart_servo_x->usart_tx_buf[0] = 0xFF;	 // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[1] = 0xFF;	 // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[2] = servo_id; // èˆµæœºIDå·
+	p_usart_servo_x->usart_tx_buf[3] = len + 3;	 // æ•°æ®åŒ…æœ‰æ•ˆæ•°æ®é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[4] = 0x03;	 // å†™æŒ‡ä»¤
+	p_usart_servo_x->usart_tx_buf[5] = address;	 // æ§åˆ¶è¡¨é‡Œç›®æ ‡ä½ç½®çš„é¦–åœ°å€
+	if (len == 1)
+	{
+		p_usart_servo_x->usart_tx_buf[6] = value; // èˆµæœºç›®æ ‡ä½ç½® ä½8ä½
+		sum = 0;
+		for (i = 2; i <= 6; i++)
+		{
+			sum += p_usart_servo_x->usart_tx_buf[i];
+		}
+		sum %= 256;
+		sum = ~sum;
+		p_usart_servo_x->usart_tx_buf[7] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
+
+		if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+			HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 8);
+	}
+	else if (len == 2)
+	{
+		p_usart_servo_x->usart_tx_buf[6] = value & 0xff; // èˆµæœºç›®æ ‡ä½ç½® ä½8ä½
+		p_usart_servo_x->usart_tx_buf[7] = value >> 8;	 // èˆµæœºç›®æ ‡ä½ç½® é«˜8ä½
+		sum = 0;
+		for (i = 2; i <= 7; i++)
+		{
+			sum += p_usart_servo_x->usart_tx_buf[i];
+		}
+		sum %= 256;
+		sum = ~sum;
+		p_usart_servo_x->usart_tx_buf[8] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
+
+		if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+			HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 9);
+	}
+}
+// mode 0;2
+void sevroSetMode(uint8_t id, uint8_t mode)
+{
+	FEETECH_UsartSetServo(id, 0x37, 1, 0);
+	osDelay(10);
+	FEETECH_UsartSetServo(id, RUNMODE, 1, mode);
+	osDelay(10);
+	//	if(mode == 2)
+	//	{
+	//		FEETECH_UsartSetServo(id,PWMTIME,2,0);
+	//		osDelay(10);
+	//	}
+}
+void sevroSetZero(void)
+{
+	for (uint8_t i = 1; i <= 12; i++)
+	{
+		FEETECH_UsartSetServo(i, 0x37, 1, 0);
+		osDelay(10);
+		FEETECH_UsartSetServo(i, TORQUESWITCH, 1, 128);
+		osDelay(10);
+	}
+	//
+	//		FEETECH_UsartSetServo(11,0x37,1 ,0);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(11,POS_KP,1,15);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(12,0x37,1 ,0);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(12,POS_KP,1,10);
+	//		osDelay(10);
+	////
+	//		FEETECH_UsartSetServo(9,0x37,1 ,0);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(9,TORQUESWITCH,1,128);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(10,0x37,1 ,0);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(10,TORQUESWITCH,1,128);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(4,0x37,1 ,0);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(4,TORQUESWITCH,1,128);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(2,0x37,1 ,0);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(2,TORQUESWITCH,1,128);
+	//		osDelay(10);
+
+	//		FEETECH_UsartSetServo(5,0x37,1 ,0);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(5,ID,1,2);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(5,0x37,1 ,0);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(5,ID,1,6);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(2,0x37,1 ,0);
+	//		osDelay(10);
+	//		FEETECH_UsartSetServo(2,TORQUESWITCH,1,128);
+	//		osDelay(10);
+}
+
+// èˆµæœºè§’åº¦åŒæ­¥å†™å…¥å‡½æ•°ï¼ˆSYNC WRITEï¼‰â€”â€”HEAD
 void FEETECH_HEADSYNCWRITE(int16_t pos[5], int16_t ms[5], int16_t speed[5])
 {
 	uint8_t i = 0;
@@ -201,44 +432,74 @@ void FEETECH_HEADSYNCWRITE(int16_t pos[5], int16_t ms[5], int16_t speed[5])
 	USART_SERVO_TYPEDEF *p_usart_servo_x;
 	p_usart_servo_x = &USART_HEAD;
 
-	p_usart_servo_x->usart_tx_buf[0] = 0xFF; // Ö¡Í·
-	p_usart_servo_x->usart_tx_buf[1] = 0xFF; // Ö¡Í·
-	p_usart_servo_x->usart_tx_buf[2] = 0xFE; // ¶æ»úIDºÅ
-	p_usart_servo_x->usart_tx_buf[3] = 0x12; // Êı¾İ°üÓĞĞ§Êı¾İ³¤¶È
-	p_usart_servo_x->usart_tx_buf[4] = 0x83; // Í¬²½Ğ´Ö¸Áî
-	p_usart_servo_x->usart_tx_buf[5] = 0x2A; // ¿ØÖÆ±íÀïÄ¿±êÎ»ÖÃµÄÊ×µØÖ·
-	p_usart_servo_x->usart_tx_buf[6] = 0x06; // Ğ´Èë²ÎÊıµÄ³¤¶È
+	p_usart_servo_x->usart_tx_buf[0] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[1] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[2] = 0xFE; // èˆµæœºIDå·
+	p_usart_servo_x->usart_tx_buf[3] = 0x0B; // æ•°æ®åŒ…æœ‰æ•ˆæ•°æ®é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[4] = 0x83; // åŒæ­¥å†™æŒ‡ä»¤
+	p_usart_servo_x->usart_tx_buf[5] = 0x2A; // æ§åˆ¶è¡¨é‡Œç›®æ ‡ä½ç½®çš„é¦–åœ°å€
+	p_usart_servo_x->usart_tx_buf[6] = 0x06; // å†™å…¥å‚æ•°çš„é•¿åº¦
 
-	p_usart_servo_x->usart_tx_buf[7] = 11;				 // ¶æ»úID
-	p_usart_servo_x->usart_tx_buf[8] = pos[0] & 0xff;	 // ¶æ»úÄ¿±êÎ»ÖÃ µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[9] = pos[0] >> 8;		 // ¶æ»úÄ¿±êÎ»ÖÃ ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[10] = ms[0] & 0xff;	 // ¶æ»úÄ¿±êÊ±¼ä µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[11] = ms[0] >> 8;		 // ¶æ»úÄ¿±êÊ±¼ä ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[12] = speed[0] & 0xff; // ¶æ»úÄ¿±êËÙ¶È ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[13] = speed[0] >> 8;	 // ¶æ»úÄ¿±êËÙ¶È µÍ8Î»
-
-	p_usart_servo_x->usart_tx_buf[14] = 12;				 // ¶æ»úID
-	p_usart_servo_x->usart_tx_buf[15] = pos[1] & 0xff;	 // ¶æ»úÄ¿±êÎ»ÖÃ µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[16] = pos[1] >> 8;	 // ¶æ»úÄ¿±êÎ»ÖÃ ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[17] = ms[1] & 0xff;	 // ¶æ»úÄ¿±êÊ±¼ä µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[18] = ms[1] >> 8;		 // ¶æ»úÄ¿±êÊ±¼ä ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[19] = speed[1] & 0xff; // ¶æ»úÄ¿±êËÙ¶È ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[20] = speed[1] >> 8;	 // ¶æ»úÄ¿±êËÙ¶È µÍ8Î»
+	p_usart_servo_x->usart_tx_buf[7] = 12;				 // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[8] = pos[0] & 0xff;	 // èˆµæœºç›®æ ‡ä½ç½® ä½8ä½
+	p_usart_servo_x->usart_tx_buf[9] = pos[0] >> 8;		 // èˆµæœºç›®æ ‡ä½ç½® é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[10] = ms[0] & 0xff;	 // èˆµæœºç›®æ ‡æ—¶é—´ ä½8ä½
+	p_usart_servo_x->usart_tx_buf[11] = ms[0] >> 8;		 // èˆµæœºç›®æ ‡æ—¶é—´ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[12] = speed[0] & 0xff; // èˆµæœºç›®æ ‡é€Ÿåº¦ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[13] = speed[0] >> 8;	 // èˆµæœºç›®æ ‡é€Ÿåº¦ ä½8ä½
 
 	sum = 0;
-	for (i = 2; i <= 20; i++)
+	for (i = 2; i <= 13; i++)
 	{
 		sum += p_usart_servo_x->usart_tx_buf[i];
 	}
 	sum %= 256;
 	sum = ~sum;
-	p_usart_servo_x->usart_tx_buf[21] = sum; // Êı¾İ°üĞ£ÑéºÍ£¨¶Ô0µ½n-1µÄ×Ö½ÚÊı¾İÇóºÍ£¬È»ºó¸ú256È¡ÓàÊı£©
+	p_usart_servo_x->usart_tx_buf[14] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
 
-	HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 22);
+	if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+		HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 15);
+	// HAL_UART_Transmit(p_usart_servo_x->p_usart_n,p_usart_servo_x->usart_tx_buf,13,100);
+}
+// èˆµæœºè§’åº¦åŒæ­¥å†™å…¥å‡½æ•°ï¼ˆSYNC WRITEï¼‰â€”â€”NECK
+void FEETECH_NECKSYNCWRITE(int16_t pos[5], int16_t ms[5], int16_t speed[5])
+{
+	uint8_t i = 0;
+	uint8_t sum = 0;
+	USART_SERVO_TYPEDEF *p_usart_servo_x;
+	p_usart_servo_x = &USART_NECK;
+
+	p_usart_servo_x->usart_tx_buf[0] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[1] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[2] = 0xFE; // èˆµæœºIDå·
+	p_usart_servo_x->usart_tx_buf[3] = 0x0B; // æ•°æ®åŒ…æœ‰æ•ˆæ•°æ®é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[4] = 0x83; // åŒæ­¥å†™æŒ‡ä»¤
+	p_usart_servo_x->usart_tx_buf[5] = 0x2A; // æ§åˆ¶è¡¨é‡Œç›®æ ‡ä½ç½®çš„é¦–åœ°å€
+	p_usart_servo_x->usart_tx_buf[6] = 0x06; // å†™å…¥å‚æ•°çš„é•¿åº¦
+
+	p_usart_servo_x->usart_tx_buf[7] = 11;				 // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[8] = pos[0] & 0xff;	 // èˆµæœºç›®æ ‡ä½ç½® ä½8ä½
+	p_usart_servo_x->usart_tx_buf[9] = pos[0] >> 8;		 // èˆµæœºç›®æ ‡ä½ç½® é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[10] = ms[0] & 0xff;	 // èˆµæœºç›®æ ‡æ—¶é—´ ä½8ä½
+	p_usart_servo_x->usart_tx_buf[11] = ms[0] >> 8;		 // èˆµæœºç›®æ ‡æ—¶é—´ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[12] = speed[0] & 0xff; // èˆµæœºç›®æ ‡é€Ÿåº¦ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[13] = speed[0] >> 8;	 // èˆµæœºç›®æ ‡é€Ÿåº¦ ä½8ä½
+
+	sum = 0;
+	for (i = 2; i <= 13; i++)
+	{
+		sum += p_usart_servo_x->usart_tx_buf[i];
+	}
+	sum %= 256;
+	sum = ~sum;
+	p_usart_servo_x->usart_tx_buf[14] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
+
+	if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+		HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 15);
 	// HAL_UART_Transmit(p_usart_servo_x->p_usart_n,p_usart_servo_x->usart_tx_buf,13,100);
 }
 
-// ¶æ»ú½Ç¶ÈÍ¬²½Ğ´Èëº¯Êı£¨SYNC WRITE£©¡ª¡ªLEG
+// èˆµæœºè§’åº¦åŒæ­¥å†™å…¥å‡½æ•°ï¼ˆSYNC WRITEï¼‰â€”â€”LEG
 void FEETECH_LEGSYNCWRITE(uint8_t leg_id, int16_t pos[5], int16_t ms[5], int16_t speed[5])
 {
 	uint8_t i = 0;
@@ -257,53 +518,53 @@ void FEETECH_LEGSYNCWRITE(uint8_t leg_id, int16_t pos[5], int16_t ms[5], int16_t
 		break;
 	}
 
-	p_usart_servo_x->usart_tx_buf[0] = 0xFF; // Ö¡Í·
-	p_usart_servo_x->usart_tx_buf[1] = 0xFF; // Ö¡Í·
-	p_usart_servo_x->usart_tx_buf[2] = 0xFE; // ¶æ»úIDºÅ
-	p_usart_servo_x->usart_tx_buf[3] = 0x27; // Êı¾İ°üÓĞĞ§Êı¾İ³¤¶È
-	p_usart_servo_x->usart_tx_buf[4] = 0x83; // Í¬²½Ğ´Ö¸Áî
-	p_usart_servo_x->usart_tx_buf[5] = 0x2A; // ¿ØÖÆ±íÀïÄ¿±êÎ»ÖÃµÄÊ×µØÖ·
-	p_usart_servo_x->usart_tx_buf[6] = 0x06; // Ğ´Èë²ÎÊıµÄ³¤¶È
+	p_usart_servo_x->usart_tx_buf[0] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[1] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[2] = 0xFE; // èˆµæœºIDå·
+	p_usart_servo_x->usart_tx_buf[3] = 0x27; // æ•°æ®åŒ…æœ‰æ•ˆæ•°æ®é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[4] = 0x83; // åŒæ­¥å†™æŒ‡ä»¤
+	p_usart_servo_x->usart_tx_buf[5] = 0x2A; // æ§åˆ¶è¡¨é‡Œç›®æ ‡ä½ç½®çš„é¦–åœ°å€
+	p_usart_servo_x->usart_tx_buf[6] = 0x06; // å†™å…¥å‚æ•°çš„é•¿åº¦
 
-	p_usart_servo_x->usart_tx_buf[7] = leg_id * 5 - 4;	 // ¶æ»úID
-	p_usart_servo_x->usart_tx_buf[8] = pos[0] & 0xff;	 // ¶æ»úÄ¿±êÎ»ÖÃ µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[9] = pos[0] >> 8;		 // ¶æ»úÄ¿±êÎ»ÖÃ ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[10] = ms[0] & 0xff;	 // ¶æ»úÄ¿±êÊ±¼ä µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[11] = ms[0] >> 8;		 // ¶æ»úÄ¿±êÊ±¼ä ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[12] = speed[0] & 0xff; // ¶æ»úÄ¿±êËÙ¶È ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[13] = speed[0] >> 8;	 // ¶æ»úÄ¿±êËÙ¶È µÍ8Î»
+	p_usart_servo_x->usart_tx_buf[7] = leg_id * 5 - 4;	 // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[8] = pos[0] & 0xff;	 // èˆµæœºç›®æ ‡ä½ç½® ä½8ä½
+	p_usart_servo_x->usart_tx_buf[9] = pos[0] >> 8;		 // èˆµæœºç›®æ ‡ä½ç½® é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[10] = ms[0] & 0xff;	 // èˆµæœºç›®æ ‡æ—¶é—´ ä½8ä½
+	p_usart_servo_x->usart_tx_buf[11] = ms[0] >> 8;		 // èˆµæœºç›®æ ‡æ—¶é—´ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[12] = speed[0] & 0xff; // èˆµæœºç›®æ ‡é€Ÿåº¦ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[13] = speed[0] >> 8;	 // èˆµæœºç›®æ ‡é€Ÿåº¦ ä½8ä½
 
-	p_usart_servo_x->usart_tx_buf[14] = leg_id * 5 - 3;	 // ¶æ»úID
-	p_usart_servo_x->usart_tx_buf[15] = pos[1] & 0xff;	 // ¶æ»úÄ¿±êÎ»ÖÃ µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[16] = pos[1] >> 8;	 // ¶æ»úÄ¿±êÎ»ÖÃ ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[17] = ms[1] & 0xff;	 // ¶æ»úÄ¿±êÊ±¼ä µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[18] = ms[1] >> 8;		 // ¶æ»úÄ¿±êÊ±¼ä ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[19] = speed[1] & 0xff; // ¶æ»úÄ¿±êËÙ¶È ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[20] = speed[1] >> 8;	 // ¶æ»úÄ¿±êËÙ¶È µÍ8Î»
+	p_usart_servo_x->usart_tx_buf[14] = leg_id * 5 - 3;	 // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[15] = pos[1] & 0xff;	 // èˆµæœºç›®æ ‡ä½ç½® ä½8ä½
+	p_usart_servo_x->usart_tx_buf[16] = pos[1] >> 8;	 // èˆµæœºç›®æ ‡ä½ç½® é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[17] = ms[1] & 0xff;	 // èˆµæœºç›®æ ‡æ—¶é—´ ä½8ä½
+	p_usart_servo_x->usart_tx_buf[18] = ms[1] >> 8;		 // èˆµæœºç›®æ ‡æ—¶é—´ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[19] = speed[1] & 0xff; // èˆµæœºç›®æ ‡é€Ÿåº¦ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[20] = speed[1] >> 8;	 // èˆµæœºç›®æ ‡é€Ÿåº¦ ä½8ä½
 
-	p_usart_servo_x->usart_tx_buf[21] = leg_id * 5 - 2;	 // ¶æ»úID
-	p_usart_servo_x->usart_tx_buf[22] = pos[2] & 0xff;	 // ¶æ»úÄ¿±êÎ»ÖÃ µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[23] = pos[2] >> 8;	 // ¶æ»úÄ¿±êÎ»ÖÃ ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[24] = ms[2] & 0xff;	 // ¶æ»úÄ¿±êÊ±¼ä µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[25] = ms[2] >> 8;		 // ¶æ»úÄ¿±êÊ±¼ä ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[26] = speed[2] & 0xff; // ¶æ»úÄ¿±êËÙ¶È ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[27] = speed[2] >> 8;	 // ¶æ»úÄ¿±êËÙ¶È µÍ8Î»
+	p_usart_servo_x->usart_tx_buf[21] = leg_id * 5 - 2;	 // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[22] = pos[2] & 0xff;	 // èˆµæœºç›®æ ‡ä½ç½® ä½8ä½
+	p_usart_servo_x->usart_tx_buf[23] = pos[2] >> 8;	 // èˆµæœºç›®æ ‡ä½ç½® é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[24] = ms[2] & 0xff;	 // èˆµæœºç›®æ ‡æ—¶é—´ ä½8ä½
+	p_usart_servo_x->usart_tx_buf[25] = ms[2] >> 8;		 // èˆµæœºç›®æ ‡æ—¶é—´ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[26] = speed[2] & 0xff; // èˆµæœºç›®æ ‡é€Ÿåº¦ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[27] = speed[2] >> 8;	 // èˆµæœºç›®æ ‡é€Ÿåº¦ ä½8ä½
 
-	p_usart_servo_x->usart_tx_buf[28] = leg_id * 5 - 1;	 // ¶æ»úID
-	p_usart_servo_x->usart_tx_buf[29] = pos[3] & 0xff;	 // ¶æ»úÄ¿±êÎ»ÖÃ µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[30] = pos[3] >> 8;	 // ¶æ»úÄ¿±êÎ»ÖÃ ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[31] = ms[3] & 0xff;	 // ¶æ»úÄ¿±êÊ±¼ä µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[32] = ms[3] >> 8;		 // ¶æ»úÄ¿±êÊ±¼ä ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[33] = speed[3] & 0xff; // ¶æ»úÄ¿±êËÙ¶È ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[34] = speed[3] >> 8;	 // ¶æ»úÄ¿±êËÙ¶È µÍ8Î»
+	p_usart_servo_x->usart_tx_buf[28] = leg_id * 5 - 1;	 // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[29] = pos[3] & 0xff;	 // èˆµæœºç›®æ ‡ä½ç½® ä½8ä½
+	p_usart_servo_x->usart_tx_buf[30] = pos[3] >> 8;	 // èˆµæœºç›®æ ‡ä½ç½® é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[31] = ms[3] & 0xff;	 // èˆµæœºç›®æ ‡æ—¶é—´ ä½8ä½
+	p_usart_servo_x->usart_tx_buf[32] = ms[3] >> 8;		 // èˆµæœºç›®æ ‡æ—¶é—´ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[33] = speed[3] & 0xff; // èˆµæœºç›®æ ‡é€Ÿåº¦ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[34] = speed[3] >> 8;	 // èˆµæœºç›®æ ‡é€Ÿåº¦ ä½8ä½
 
-	p_usart_servo_x->usart_tx_buf[35] = leg_id * 5;		 // ¶æ»úID
-	p_usart_servo_x->usart_tx_buf[36] = pos[4] & 0xff;	 // ¶æ»úÄ¿±êÎ»ÖÃ µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[37] = pos[4] >> 8;	 // ¶æ»úÄ¿±êÎ»ÖÃ ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[38] = ms[4] & 0xff;	 // ¶æ»úÄ¿±êÊ±¼ä µÍ8Î»
-	p_usart_servo_x->usart_tx_buf[39] = ms[4] >> 8;		 // ¶æ»úÄ¿±êÊ±¼ä ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[40] = speed[4] & 0xff; // ¶æ»úÄ¿±êËÙ¶È ¸ß8Î»
-	p_usart_servo_x->usart_tx_buf[41] = speed[4] >> 8;	 // ¶æ»úÄ¿±êËÙ¶È µÍ8Î»
+	p_usart_servo_x->usart_tx_buf[35] = leg_id * 5;		 // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[36] = pos[4] & 0xff;	 // èˆµæœºç›®æ ‡ä½ç½® ä½8ä½
+	p_usart_servo_x->usart_tx_buf[37] = pos[4] >> 8;	 // èˆµæœºç›®æ ‡ä½ç½® é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[38] = ms[4] & 0xff;	 // èˆµæœºç›®æ ‡æ—¶é—´ ä½8ä½
+	p_usart_servo_x->usart_tx_buf[39] = ms[4] >> 8;		 // èˆµæœºç›®æ ‡æ—¶é—´ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[40] = speed[4] & 0xff; // èˆµæœºç›®æ ‡é€Ÿåº¦ é«˜8ä½
+	p_usart_servo_x->usart_tx_buf[41] = speed[4] >> 8;	 // èˆµæœºç›®æ ‡é€Ÿåº¦ ä½8ä½
 
 	sum = 0;
 	for (i = 2; i <= 41; i++)
@@ -312,39 +573,207 @@ void FEETECH_LEGSYNCWRITE(uint8_t leg_id, int16_t pos[5], int16_t ms[5], int16_t
 	}
 	sum %= 256;
 	sum = ~sum;
-	p_usart_servo_x->usart_tx_buf[42] = sum; // Êı¾İ°üĞ£ÑéºÍ£¨¶Ô0µ½n-1µÄ×Ö½ÚÊı¾İÇóºÍ£¬È»ºó¸ú256È¡ÓàÊı£©
+	p_usart_servo_x->usart_tx_buf[42] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
 
-	HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 43);
+	if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+		HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 43);
 	// HAL_UART_Transmit(p_usart_servo_x->p_usart_n,p_usart_servo_x->usart_tx_buf,13,100);
 }
-// Ö¸¶¨¶æ»ú½Ç¶È¶ÁÈ¡º¯Êı
-void FEETECH_ReadServoPos(uint8_t servo_id)
+
+// èˆµæœºæ¨¡å¼åŒæ­¥å†™å…¥å‡½æ•°ï¼ˆSYNC WRITEï¼‰â€”â€”LEG
+void FEETECH_MODEWRITE(uint8_t mode, uint8_t leg_id)
 {
 	uint8_t i = 0;
 	uint8_t sum = 0;
 	USART_SERVO_TYPEDEF *p_usart_servo_x;
 
+	switch (leg_id)
+	{
+	case 1:
+		p_usart_servo_x = &USART_LEFT_LEG;
+		break;
+	case 2:
+		p_usart_servo_x = &USART_RIGHT_LEG;
+		break;
+	default:
+		break;
+	}
+
+	p_usart_servo_x->usart_tx_buf[0] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[1] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[2] = 0xFE; // èˆµæœºIDå·
+	p_usart_servo_x->usart_tx_buf[3] = 0x0e; // æ•°æ®åŒ…æœ‰æ•ˆæ•°æ®é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[4] = 0x83; // åŒæ­¥å†™æŒ‡ä»¤
+	p_usart_servo_x->usart_tx_buf[5] = 0x21; // æ§åˆ¶è¡¨é‡Œç›®æ ‡ä½ç½®çš„é¦–åœ°å€
+	p_usart_servo_x->usart_tx_buf[6] = 0x01; // å†™å…¥å‚æ•°çš„é•¿åº¦
+
+	p_usart_servo_x->usart_tx_buf[7] = leg_id * 5 - 4; // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[8] = mode;
+
+	p_usart_servo_x->usart_tx_buf[9] = leg_id * 5 - 3; // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[10] = mode;
+
+	p_usart_servo_x->usart_tx_buf[11] = leg_id * 5 - 2; // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[12] = mode;
+
+	p_usart_servo_x->usart_tx_buf[13] = leg_id * 5 - 1; // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[14] = mode;
+
+	p_usart_servo_x->usart_tx_buf[15] = leg_id * 5; // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[16] = mode;
+
+	sum = 0;
+	for (i = 2; i <= 16; i++)
+	{
+		sum += p_usart_servo_x->usart_tx_buf[i];
+	}
+	sum %= 256;
+	sum = ~sum;
+	p_usart_servo_x->usart_tx_buf[17] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
+
+	if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+		HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 18);
+	// HAL_UART_Transmit(p_usart_servo_x->p_usart_n,p_usart_servo_x->usart_tx_buf,13,100);
+
+	if (mode == 1)
+	{
+		p_usart_servo_x->usart_tx_buf[0] = 0xFF; // å¸§å¤´
+		p_usart_servo_x->usart_tx_buf[1] = 0xFF; // å¸§å¤´
+		p_usart_servo_x->usart_tx_buf[2] = 0xFE; // èˆµæœºIDå·
+		p_usart_servo_x->usart_tx_buf[3] = 0x13; // æ•°æ®åŒ…æœ‰æ•ˆæ•°æ®é•¿åº¦
+		p_usart_servo_x->usart_tx_buf[4] = 0x83; // åŒæ­¥å†™æŒ‡ä»¤
+		p_usart_servo_x->usart_tx_buf[5] = 0x2e; // æ§åˆ¶è¡¨é‡Œç›®æ ‡ä½ç½®çš„é¦–åœ°å€
+		p_usart_servo_x->usart_tx_buf[6] = 0x02; // å†™å…¥å‚æ•°çš„é•¿åº¦
+
+		p_usart_servo_x->usart_tx_buf[7] = leg_id * 5 - 4; // èˆµæœºID
+		p_usart_servo_x->usart_tx_buf[8] = 0;
+		p_usart_servo_x->usart_tx_buf[9] = 0;
+
+		p_usart_servo_x->usart_tx_buf[10] = leg_id * 5 - 3; // èˆµæœºID
+		p_usart_servo_x->usart_tx_buf[11] = 0;
+		p_usart_servo_x->usart_tx_buf[12] = 0;
+
+		p_usart_servo_x->usart_tx_buf[13] = leg_id * 5 - 2; // èˆµæœºID
+		p_usart_servo_x->usart_tx_buf[14] = 0;
+		p_usart_servo_x->usart_tx_buf[15] = 0;
+
+		p_usart_servo_x->usart_tx_buf[16] = leg_id * 5 - 1; // èˆµæœºID
+		p_usart_servo_x->usart_tx_buf[17] = 0;
+		p_usart_servo_x->usart_tx_buf[18] = 0;
+
+		p_usart_servo_x->usart_tx_buf[19] = leg_id * 5; // èˆµæœºID
+		p_usart_servo_x->usart_tx_buf[20] = 0;
+		p_usart_servo_x->usart_tx_buf[21] = 0;
+
+		sum = 0;
+		for (i = 2; i <= 21; i++)
+		{
+			sum += p_usart_servo_x->usart_tx_buf[i];
+		}
+		sum %= 256;
+		sum = ~sum;
+		p_usart_servo_x->usart_tx_buf[22] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
+
+		if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+			HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 23);
+	}
+}
+
+// èˆµæœºæ¨¡å¼åŒæ­¥å†™å…¥å‡½æ•°ï¼ˆSYNC WRITEï¼‰â€”â€”HEAD
+void FEETECH_HEADMODEWRITE(uint8_t mode)
+{
+	uint8_t i = 0;
+	uint8_t sum = 0;
+	USART_SERVO_TYPEDEF *p_usart_servo_x;
+	p_usart_servo_x = &USART_HEAD;
+
+	p_usart_servo_x->usart_tx_buf[0] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[1] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[2] = 0xFE; // èˆµæœºIDå·
+	p_usart_servo_x->usart_tx_buf[3] = 0x08; // æ•°æ®åŒ…æœ‰æ•ˆæ•°æ®é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[4] = 0x83; // åŒæ­¥å†™æŒ‡ä»¤
+	p_usart_servo_x->usart_tx_buf[5] = 0x21; // æ§åˆ¶è¡¨é‡Œç›®æ ‡ä½ç½®çš„é¦–åœ°å€
+	p_usart_servo_x->usart_tx_buf[6] = 0x01; // å†™å…¥å‚æ•°çš„é•¿åº¦
+
+	p_usart_servo_x->usart_tx_buf[7] = 11; // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[8] = mode;
+
+	p_usart_servo_x->usart_tx_buf[9] = 12; // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[10] = mode;
+
+	sum = 0;
+	for (i = 2; i <= 10; i++)
+	{
+		sum += p_usart_servo_x->usart_tx_buf[i];
+	}
+	sum %= 256;
+	sum = ~sum;
+	p_usart_servo_x->usart_tx_buf[11] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
+
+	if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+		HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 12);
+	// HAL_UART_Transmit(p_usart_servo_x->p_usart_n,p_usart_servo_x->usart_tx_buf,13,100);
+	if (mode == 1)
+	{
+		p_usart_servo_x->usart_tx_buf[0] = 0xFF; // å¸§å¤´
+		p_usart_servo_x->usart_tx_buf[1] = 0xFF; // å¸§å¤´
+		p_usart_servo_x->usart_tx_buf[2] = 0xFE; // èˆµæœºIDå·
+		p_usart_servo_x->usart_tx_buf[3] = 0x0a; // æ•°æ®åŒ…æœ‰æ•ˆæ•°æ®é•¿åº¦
+		p_usart_servo_x->usart_tx_buf[4] = 0x83; // åŒæ­¥å†™æŒ‡ä»¤
+		p_usart_servo_x->usart_tx_buf[5] = 0x2e; // æ§åˆ¶è¡¨é‡Œç›®æ ‡ä½ç½®çš„é¦–åœ°å€
+		p_usart_servo_x->usart_tx_buf[6] = 0x02; // å†™å…¥å‚æ•°çš„é•¿åº¦
+
+		p_usart_servo_x->usart_tx_buf[7] = 11; // èˆµæœºID
+		p_usart_servo_x->usart_tx_buf[8] = 0;
+		p_usart_servo_x->usart_tx_buf[9] = 0;
+
+		p_usart_servo_x->usart_tx_buf[10] = 12; // èˆµæœºID
+		p_usart_servo_x->usart_tx_buf[11] = 0;
+		p_usart_servo_x->usart_tx_buf[12] = 0;
+
+		sum = 0;
+		for (i = 2; i <= 12; i++)
+		{
+			sum += p_usart_servo_x->usart_tx_buf[i];
+		}
+		sum %= 256;
+		sum = ~sum;
+		p_usart_servo_x->usart_tx_buf[13] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°ï¼‰
+
+		if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+			HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 14);
+	}
+}
+// æŒ‡å®šèˆµæœºè§’åº¦è¯»å–å‡½æ•°
+void FEETECH_ReadServoPos(uint8_t servo_id)
+{
+	uint8_t i = 0;
+	uint8_t sum = 0;
+	static USART_SERVO_TYPEDEF *p_usart_servo_x;
+
 	switch (servo_id)
 	{
-	case 1:;
-	case 2:;
+	case 1:
+	case 2:
 	case 3:
 		p_usart_servo_x = &USART_LEG1;
 		break;
-	case 4:;
+	case 4:
 	case 5:
 		p_usart_servo_x = &USART_LEG2;
 		break;
-	case 6:;
-	case 7:;
+	case 6:
+	case 7:
 	case 8:
 		p_usart_servo_x = &USART_LEG3;
 		break;
-	case 9:;
+	case 9:
 	case 10:
 		p_usart_servo_x = &USART_LEG4;
 		break;
-	case 11:;
+	case 11:
+		p_usart_servo_x = &USART_NECK;
+		break;
 	case 12:
 		p_usart_servo_x = &USART_HEAD;
 		break;
@@ -352,13 +781,17 @@ void FEETECH_ReadServoPos(uint8_t servo_id)
 		break;
 	}
 
-	p_usart_servo_x->usart_tx_buf[0] = 0xFF;	 // Ö¡Í·
-	p_usart_servo_x->usart_tx_buf[1] = 0xFF;	 // Ö¡Í·
-	p_usart_servo_x->usart_tx_buf[2] = servo_id; // ¶æ»úID
-	p_usart_servo_x->usart_tx_buf[3] = 0x04;	 // Êı¾İ°üÄÚÈİµÄ×Ö½Ú³¤¶È
-	p_usart_servo_x->usart_tx_buf[4] = 0x02;	 // Êı¾İ°üÄÚÈİ
-	p_usart_servo_x->usart_tx_buf[5] = 0x38;	 // Êı¾İ°üµØÖ·
-	p_usart_servo_x->usart_tx_buf[6] = 0x08;	 // Êı¾İ°ü³¤¶È
+	// p_usart_servo_x = &USART_LEG1;
+
+	p_usart_servo_x->usart_tx_buf[0] = 0xFF;	 // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[1] = 0xFF;	 // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[2] = servo_id; // èˆµæœºID
+	p_usart_servo_x->usart_tx_buf[3] = 0x04;	 // æ•°æ®åŒ…å†…å®¹çš„å­—èŠ‚é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[4] = 0x02;	 // æ•°æ®åŒ…å†…å®¹
+	p_usart_servo_x->usart_tx_buf[5] = 0x38;	 // æ•°æ®åŒ…åœ°å€
+	p_usart_servo_x->usart_tx_buf[6] = 0x0A;	 // æ•°æ®åŒ…é•¿åº¦
+												 //	p_usart_servo_x->usart_tx_buf[5] = 0x0d;	 // æ•°æ®åŒ…åœ°å€
+												 //	p_usart_servo_x->usart_tx_buf[6] = 0x01;	 // æ•°æ®åŒ…é•¿åº¦
 
 	sum = 0;
 	for (i = 2; i <= 6; i++)
@@ -367,10 +800,11 @@ void FEETECH_ReadServoPos(uint8_t servo_id)
 	}
 	sum %= 256;
 	sum = ~sum;
-	p_usart_servo_x->usart_tx_buf[7] = sum; // Êı¾İ°üĞ£ÑéºÍ£¨¶Ô0µ½n-1µÄ×Ö½ÚÊı¾İÇóºÍ£¬È»ºó¸ú256È¡ÓàÊıºóÈ¡·´£©
-	HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 8);
+	p_usart_servo_x->usart_tx_buf[7] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°åå–åï¼‰
+	if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+		HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 8);
 }
-// ¶æ»ú½Ç¶ÈÍ¬²½¶ÁÈ¡º¯Êı
+// èˆµæœºè§’åº¦åŒæ­¥è¯»å–å‡½æ•°
 void FEETECH_LEGSYNCRead(uint8_t servo_id)
 {
 	uint8_t i = 0;
@@ -389,15 +823,15 @@ void FEETECH_LEGSYNCRead(uint8_t servo_id)
 		break;
 	}
 
-	p_usart_servo_x->usart_tx_buf[0] = 0xFF; // Ö¡Í·
-	p_usart_servo_x->usart_tx_buf[1] = 0xFF; // Ö¡Í·
-	p_usart_servo_x->usart_tx_buf[2] = 0xFE; // ¹ã²¥
-	p_usart_servo_x->usart_tx_buf[3] = 0x06; // Êı¾İ°ü³¤¶È
-	p_usart_servo_x->usart_tx_buf[4] = 0x82; // Êı¾İ°üÖ¸Áî
-	p_usart_servo_x->usart_tx_buf[5] = 0x38; // Êı¾İ°üµØÖ·
-	p_usart_servo_x->usart_tx_buf[6] = 0x08; // Êı¾İ°ü³¤¶È
-	p_usart_servo_x->usart_tx_buf[7] = 0x01; // Êı¾İ°ü³¤¶È
-	p_usart_servo_x->usart_tx_buf[8] = 0x02; // Êı¾İ°ü³¤¶È
+	p_usart_servo_x->usart_tx_buf[0] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[1] = 0xFF; // å¸§å¤´
+	p_usart_servo_x->usart_tx_buf[2] = 0xFE; // å¹¿æ’­
+	p_usart_servo_x->usart_tx_buf[3] = 0x06; // æ•°æ®åŒ…é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[4] = 0x82; // æ•°æ®åŒ…æŒ‡ä»¤
+	p_usart_servo_x->usart_tx_buf[5] = 0x38; // æ•°æ®åŒ…åœ°å€
+	p_usart_servo_x->usart_tx_buf[6] = 0x08; // æ•°æ®åŒ…é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[7] = 0x01; // æ•°æ®åŒ…é•¿åº¦
+	p_usart_servo_x->usart_tx_buf[8] = 0x02; // æ•°æ®åŒ…é•¿åº¦
 
 	sum = 0;
 	for (i = 2; i <= 8; i++)
@@ -406,45 +840,113 @@ void FEETECH_LEGSYNCRead(uint8_t servo_id)
 	}
 	sum %= 256;
 	sum = ~sum;
-	p_usart_servo_x->usart_tx_buf[9] = sum; // Êı¾İ°üĞ£ÑéºÍ£¨¶Ô0µ½n-1µÄ×Ö½ÚÊı¾İÇóºÍ£¬È»ºó¸ú256È¡ÓàÊıºóÈ¡·´£©
+	p_usart_servo_x->usart_tx_buf[9] = sum; // æ•°æ®åŒ…æ ¡éªŒå’Œï¼ˆå¯¹0åˆ°n-1çš„å­—èŠ‚æ•°æ®æ±‚å’Œï¼Œç„¶åè·Ÿ256å–ä½™æ•°åå–åï¼‰
 
-	HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 10);
+	if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+		HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 10);
 }
 
-// ÓÃÀ´×ÛºÏ¿ØÖÆÕû¸ö»úÆ÷ÈËµÄËùÓĞÍÈ²¿
+void setmode(uint8_t mode)
+{
+	switch (mode)
+	{
+	case 0:
+
+		break;
+
+	case 1:
+
+		break;
+	}
+}
+extern uint8_t releaseSevroFlag;
+extern uint8_t personTeachFlag;
+#define SEVRO12MIN -40
+#define SEVRO12MAX 640
+// ç”¨æ¥ç»¼åˆæ§åˆ¶æ•´ä¸ªæœºå™¨äººçš„æ‰€æœ‰è…¿éƒ¨
 void User_AllSetAngTime(void)
 {
 	int16_t tmp_pos[5] = {0};
 	int16_t tmp_ms[5] = {0};
 	int16_t tmp_speed[5] = {0};
 
-	// µ÷ÊÔÊ¹ÓÃ
+	// å·¦è…¿ (leg_id=1): èˆµæœº ID 1-5
 	for (int x = 0; x < 5; x++)
 	{
-		tmp_ms[x] = goal_ms[x];
-		tmp_speed[x] = goal_speed[x];
+		tmp_ms[x] = goal_ms[x + 1];
+		tmp_speed[x] = goal_speed[x + 1];
 	}
 	tmp_pos[0] = 2048 + goal_pos[1];
 	tmp_pos[1] = 2048 + goal_pos[2];
 	tmp_pos[2] = 2048 + goal_pos[3];
 	tmp_pos[3] = 2048 + goal_pos[4];
 	tmp_pos[4] = 2048 + goal_pos[5];
-	FEETECH_LEGSYNCWRITE(1, tmp_pos, tmp_ms, tmp_speed); // ×óÍÈ
+	if (releaseSevroFlag == 0)
+	{
+		FEETECH_LEGSYNCWRITE(1, tmp_pos, tmp_ms, tmp_speed); // å·¦è…¿
+	}
+
+	// å³è…¿ (leg_id=2): èˆµæœº ID 6-10
+	for (int x = 0; x < 5; x++)
+	{
+		tmp_ms[x] = goal_ms[x + 6];
+		tmp_speed[x] = goal_speed[x + 6];
+	}
 	tmp_pos[0] = 2048 + goal_pos[6];
 	tmp_pos[1] = 2048 + goal_pos[7];
 	tmp_pos[2] = 2048 + goal_pos[8];
 	tmp_pos[3] = 2048 + goal_pos[9];
 	tmp_pos[4] = 2048 + goal_pos[10];
-	FEETECH_LEGSYNCWRITE(2, tmp_pos, tmp_ms, tmp_speed); // ÓÒÍÈ
-	tmp_pos[0] = 2048 + goal_pos[11];
-	tmp_pos[1] = 2048 + goal_pos[12];
-	FEETECH_HEADSYNCWRITE(tmp_pos, tmp_ms, tmp_speed); // Í·²¿
+	if (releaseSevroFlag == 0)
+	{
+		FEETECH_LEGSYNCWRITE(2, tmp_pos, tmp_ms, tmp_speed); // å³è…¿
+	}
+
+	//	if(goal_pos[12] < SEVRO12MIN) goal_pos[12] = SEVRO12MIN;
+	//	else if(goal_pos[12] > SEVRO12MAX) goal_pos[12] = SEVRO12MAX;
+	if (personTeachFlag != 1)
+	{
+		// å¤´éƒ¨èˆµæœº ID 12
+		tmp_pos[0] = 2048 + goal_pos[12];
+		tmp_ms[0] = goal_ms[12];
+		tmp_speed[0] = goal_speed[12];
+		FEETECH_HEADSYNCWRITE(tmp_pos, tmp_ms, tmp_speed); // å¤´éƒ¨
+
+		// è„–å­èˆµæœº ID 11
+		tmp_pos[0] = 2048 + goal_pos[11];
+		tmp_ms[0] = goal_ms[11];
+		tmp_speed[0] = goal_speed[11];
+		FEETECH_NECKSYNCWRITE(tmp_pos, tmp_ms, tmp_speed); // è„–å­
+	}
 }
 
-/*ÓÃ±´Èû¶ûÀ´¼ÆËãÃ¿µ¥¸ö¶¯×÷µÄ¶æ»ú½Ç¶È*/
+int16_t servo11_angle, servo12_angle;
+
+void hand_angle(int angle_11, int angle_12)
+{
+	int angle_11x = angle_11 * 4096 / 360 + servo11_mid;
+	int angle_12x = angle_12 * 4096 / 360 + servo12_mid;
+	if ((angle_11x < serco11_max) && (angle_11x > serco11_min))
+	{
+		servo11_angle = angle_11x;
+	}
+	else
+		servo11_angle = servo11_mid;
+
+	if ((angle_12x > serco12_min) && (angle_12x < serco12_max))
+	{
+		servo12_angle = angle_12x;
+	}
+	else
+		servo12_angle = servo12_mid;
+	goal_pos[11] = servo11_angle;
+	goal_pos[12] = servo12_angle;
+}
+
+/*ç”¨è´å¡å°”æ¥è®¡ç®—æ¯å•ä¸ªåŠ¨ä½œçš„èˆµæœºè§’åº¦*/
 void User_BezierCurve(int stepping, ServoActionSeries_ram *Action_analyze)
 {
-	// ÇúÏßÉÏ¿ØÖÆµã¸öÊı(·Ö¶ÈÖµ)
+	// æ›²çº¿ä¸Šæ§åˆ¶ç‚¹ä¸ªæ•°(åˆ†åº¦å€¼)
 	float count_t = 1.0f / (stepping - 1);
 	for (int i = 0; i <= stepping - 1; i++)
 	{
