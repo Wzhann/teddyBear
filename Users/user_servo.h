@@ -23,7 +23,7 @@
 
 #define servo11_mid -1066
 #define servo12_mid 277
-#define serco11_max -54 //˳ʱ������ʱ�븺
+#define serco11_max -54 // 顺时针为正，逆时针为负
 #define serco11_min -2048
 #define serco12_max 560
 #define serco12_min 0

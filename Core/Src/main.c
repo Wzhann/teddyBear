@@ -192,7 +192,7 @@ int main(void)
 //	{
 //		cococo++;
 //		if(cococo > 5)
-//			HAL_GPIO_WritePin(Power_out_GPIO_Port,Power_out_Pin,GPIO_PIN_RESET);//���ӹ���
+//			HAL_GPIO_WritePin(Power_out_GPIO_Port,Power_out_Pin,GPIO_PIN_RESET);//板子断电
 //	}
 //	else if(cococo>0)
 //		cococo--;
