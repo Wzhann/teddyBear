@@ -31,6 +31,7 @@
 #include "Action_library.h"
 #include "user_imu_i2c.h"
 #include "user_communication.h"
+#include "user_adc.h"
 #include <time.h>
 #include "stdlib.h"
 #include "user_IAP.h"
@@ -320,9 +321,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		countTimerForUser_ADC++;
 		if(countTimerForUser_ADC > 20)
 		{
-		/*电流和电压检测*/
-		User_AdcBatVoltGet();
-		User_AdcBatCurrentGet();
+		/*电流和电压检测（综合检测：空闲时才更新电压/电量）*/
+		User_AdcBatteryStatusUpdate();
 			countTimerForUser_ADC = 0;
 		}
 			

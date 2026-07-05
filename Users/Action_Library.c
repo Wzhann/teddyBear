@@ -31,6 +31,7 @@ ServoActionSeries_ram Action_TEACH;
 
 Motion_t_ram _Action_TEACH = {
     .point_total = 1,
+    .point_iter = 0,
     .motion = {
         {
             .actionId = 0,
@@ -51,8 +52,10 @@ Motion_t MstandingInit = {
     .posestart = POSE_STANDING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {
-        {.actionId = 1, .ifNeedBezier = 0, .actions = _StandInitActions, .total_step = sizeof(_StandInitActions)/sizeof(_StandInitActions[0]), .emotionType = 0, .totalDuration = 500}};
+        {.actionId = 1, .actions = _StandInitActions, .emotionType = 0, .total_step = sizeof(_StandInitActions)/sizeof(_StandInitActions[0]), .totalDuration = 500, .ifNeedBezier = 0}}
+};
 
 // 坐初始化
 static const ServoActionStep _SitInitActions[] = {
@@ -62,8 +65,10 @@ Motion_t MsittingInit = {
     .posestart = POSE_SITTING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {
-        {.actionId = 2, .ifNeedBezier = 0, .actions = _SitInitActions, .total_step = sizeof(_SitInitActions)/sizeof(_SitInitActions[0]), .emotionType = 0, .totalDuration = 500}};
+        {.actionId = 2, .actions = _SitInitActions, .emotionType = 0, .total_step = sizeof(_SitInitActions)/sizeof(_SitInitActions[0]), .totalDuration = 500, .ifNeedBezier = 0}}
+};
 
 // 趴初始化
 static const ServoActionStep _LieInitActions[] = {
@@ -73,8 +78,10 @@ Motion_t MlyingInit = {
     .posestart = POSE_LYING,
     .poseend = POSE_LYING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {
-        {.actionId = 3, .ifNeedBezier = 0, .actions = _LieInitActions, .total_step = sizeof(_LieInitActions)/sizeof(_LieInitActions[0]), .emotionType = 0, .totalDuration = 500}};
+        {.actionId = 3, .actions = _LieInitActions, .emotionType = 0, .total_step = sizeof(_LieInitActions)/sizeof(_LieInitActions[0]), .totalDuration = 500, .ifNeedBezier = 0}}
+};
 
 // ============================================================
 //              站立姿态动作 (POSE_STANDING)
@@ -117,6 +124,7 @@ Motion_t Motion_Stand_Bow = {
     .posestart = POSE_STANDING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 10, .ifNeedBezier = 0, .actions = _Stand_BowActions, .total_step = sizeof(_Stand_BowActions)/sizeof(_Stand_BowActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 2. 跳舞1
@@ -156,6 +164,7 @@ Motion_t Motion_Stand_Dance1 = {
     .posestart = POSE_STANDING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 11, .ifNeedBezier = 0, .actions = _Stand_Dance1Actions, .total_step = sizeof(_Stand_Dance1Actions)/sizeof(_Stand_Dance1Actions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 3. 跳舞2
@@ -195,6 +204,7 @@ Motion_t Motion_Stand_Dance2 = {
     .posestart = POSE_STANDING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 12, .ifNeedBezier = 0, .actions = _Stand_Dance2Actions, .total_step = sizeof(_Stand_Dance2Actions)/sizeof(_Stand_Dance2Actions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 4. 后退
@@ -234,6 +244,7 @@ Motion_t Motion_Stand_StepBack = {
     .posestart = POSE_STANDING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 13, .ifNeedBezier = 0, .actions = _Stand_StepBackActions, .total_step = sizeof(_Stand_StepBackActions)/sizeof(_Stand_StepBackActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 5. 敬礼
@@ -272,6 +283,7 @@ Motion_t Motion_Stand_Salute = {
     .posestart = POSE_STANDING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 14, .ifNeedBezier = 0, .actions = _Stand_SaluteActions, .total_step = sizeof(_Stand_SaluteActions)/sizeof(_Stand_SaluteActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 6. 飞吻（两段组合动作）
@@ -385,6 +397,7 @@ Motion_t Motion_Stand_Dance3 = {
     .posestart = POSE_STANDING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 17, .ifNeedBezier = 0, .actions = _Stand_Dance3Actions, .total_step = sizeof(_Stand_Dance3Actions)/sizeof(_Stand_Dance3Actions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 8. 站立握手
@@ -424,6 +437,7 @@ Motion_t Motion_Stand_Handshake = {
     .posestart = POSE_STANDING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 18, .ifNeedBezier = 0, .actions = _Stand_HandshakeActions, .total_step = sizeof(_Stand_HandshakeActions)/sizeof(_Stand_HandshakeActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 9. 拜一拜
@@ -463,6 +477,7 @@ Motion_t Motion_Stand_Pray = {
     .posestart = POSE_STANDING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 19, .ifNeedBezier = 0, .actions = _Stand_PrayActions, .total_step = sizeof(_Stand_PrayActions)/sizeof(_Stand_PrayActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // ============================================================
@@ -506,6 +521,7 @@ Motion_t Motion_Sit_Handshake = {
     .posestart = POSE_SITTING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 20, .ifNeedBezier = 0, .actions = _Sit_HandshakeActions, .total_step = sizeof(_Sit_HandshakeActions)/sizeof(_Sit_HandshakeActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 2. 打招呼
@@ -545,6 +561,7 @@ Motion_t Motion_Sit_Hello = {
     .posestart = POSE_SITTING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 21, .ifNeedBezier = 0, .actions = _Sit_HelloActions, .total_step = sizeof(_Sit_HelloActions)/sizeof(_Sit_HelloActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 3. 伸懒腰
@@ -584,6 +601,7 @@ Motion_t Motion_Sit_Stretch = {
     .posestart = POSE_SITTING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 22, .ifNeedBezier = 0, .actions = _Sit_StretchActions, .total_step = sizeof(_Sit_StretchActions)/sizeof(_Sit_StretchActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 4. 摇头
@@ -623,6 +641,7 @@ Motion_t Motion_Sit_ShakeHead = {
     .posestart = POSE_SITTING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 23, .ifNeedBezier = 0, .actions = _Sit_ShakeHeadActions, .total_step = sizeof(_Sit_ShakeHeadActions)/sizeof(_Sit_ShakeHeadActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 5. 加油
@@ -662,6 +681,7 @@ Motion_t Motion_Sit_Cheer = {
     .posestart = POSE_SITTING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 24, .ifNeedBezier = 0, .actions = _Sit_CheerActions, .total_step = sizeof(_Sit_CheerActions)/sizeof(_Sit_CheerActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 6. 打哈欠
@@ -701,6 +721,7 @@ Motion_t Motion_Sit_Yawn = {
     .posestart = POSE_SITTING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 25, .ifNeedBezier = 0, .actions = _Sit_YawnActions, .total_step = sizeof(_Sit_YawnActions)/sizeof(_Sit_YawnActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 7. 打鼓
@@ -740,6 +761,7 @@ Motion_t Motion_Sit_Drum = {
     .posestart = POSE_SITTING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 26, .ifNeedBezier = 0, .actions = _Sit_DrumActions, .total_step = sizeof(_Sit_DrumActions)/sizeof(_Sit_DrumActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 8. 洗脸
@@ -779,6 +801,7 @@ Motion_t Motion_Sit_WashFace = {
     .posestart = POSE_SITTING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 27, .ifNeedBezier = 0, .actions = _Sit_WashFaceActions, .total_step = sizeof(_Sit_WashFaceActions)/sizeof(_Sit_WashFaceActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // ============================================================
@@ -832,6 +855,7 @@ Motion_t Motion_SitToStand = {
     .posestart = POSE_SITTING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 30, .ifNeedBezier = 0, .actions = _SitToStandActions, .total_step = sizeof(_SitToStandActions)/sizeof(_SitToStandActions[0]), .emotionType = 0, .totalDuration = 6000}}};
 
 // 直立->坐
@@ -876,6 +900,7 @@ Motion_t Motion_StandToSit = {
     .posestart = POSE_STANDING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 31, .ifNeedBezier = 0, .actions = _StandToSitActions, .total_step = sizeof(_StandToSitActions)/sizeof(_StandToSitActions[0]), .emotionType = 0, .totalDuration = 6000}}};
 
 // 坐->趴
@@ -935,6 +960,7 @@ Motion_t Motion_SitToLie = {
     .posestart = POSE_SITTING,
     .poseend = POSE_LYING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 32, .ifNeedBezier = 0, .actions = _SitToLieActions, .total_step = sizeof(_SitToLieActions)/sizeof(_SitToLieActions[0]), .emotionType = 0, .totalDuration = 8000}}};
 
 // 趴->坐
@@ -994,6 +1020,7 @@ Motion_t Motion_LieToSit = {
     .posestart = POSE_LYING,
     .poseend = POSE_SITTING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 33, .ifNeedBezier = 0, .actions = _LieToSitActions, .total_step = sizeof(_LieToSitActions)/sizeof(_LieToSitActions[0]), .emotionType = 0, .totalDuration = 8000}}};
 
 // 趴->站
@@ -1053,6 +1080,7 @@ Motion_t Motion_LieToStand = {
     .posestart = POSE_LYING,
     .poseend = POSE_STANDING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 34, .ifNeedBezier = 0, .actions = _LieToStandActions, .total_step = sizeof(_LieToStandActions)/sizeof(_LieToStandActions[0]), .emotionType = 0, .totalDuration = 8000}}};
 
 // 站->趴
@@ -1112,6 +1140,7 @@ Motion_t Motion_StandToLie = {
     .posestart = POSE_STANDING,
     .poseend = POSE_LYING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 35, .ifNeedBezier = 0, .actions = _StandToLieActions, .total_step = sizeof(_StandToLieActions)/sizeof(_StandToLieActions[0]), .emotionType = 0, .totalDuration = 8000}}};
 
 // ============================================================
@@ -1155,6 +1184,7 @@ Motion_t Motion_Lie_WagHips = {
     .posestart = POSE_LYING,
     .poseend = POSE_LYING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 40, .ifNeedBezier = 0, .actions = _Lie_WagHipsActions, .total_step = sizeof(_Lie_WagHipsActions)/sizeof(_Lie_WagHipsActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 2. 俯卧撑
@@ -1194,6 +1224,7 @@ Motion_t Motion_Lie_PushUp = {
     .posestart = POSE_LYING,
     .poseend = POSE_LYING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 41, .ifNeedBezier = 0, .actions = _Lie_PushUpActions, .total_step = sizeof(_Lie_PushUpActions)/sizeof(_Lie_PushUpActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // 3. 爬行
@@ -1232,6 +1263,7 @@ Motion_t Motion_Lie_Crawl = {
     .posestart = POSE_LYING,
     .poseend = POSE_LYING,
     .point_total = 1,
+    .point_iter = 0,
     .motion = {{.actionId = 42, .ifNeedBezier = 0, .actions = _Lie_CrawlActions, .total_step = sizeof(_Lie_CrawlActions)/sizeof(_Lie_CrawlActions[0]), .emotionType = 0, .totalDuration = 5000}}};
 
 // ============================================================

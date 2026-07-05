@@ -3,6 +3,7 @@
 
 #include "main.h"
 #include "time.h"
+#include "Action_Library.h"  // 需要引入 Motion_t 类型定义
 
 typedef enum
 {
@@ -56,5 +57,9 @@ typedef struct
 
 void ActionRUN(void);
 void TeachmodeRUN(void);
+
+// 外部变量声明
+extern Motion_t *motion_last;
+extern ACTION_STATE ActionNow;
 
 #endif

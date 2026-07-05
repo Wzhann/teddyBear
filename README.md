@@ -27,6 +27,7 @@
   - [定时器系统](#定时器系统)
   - [Flash 存储](#flash-存储)
   - [ADC 电池监测](#adc-电池监测)
+- [如何添加新动作](#如何添加新动作)
 - [构建方法](#构建方法)
 - [CubeMX 重新配置](#cubemx-重新配置)
 - [头文件引用关系](#头文件引用关系)
@@ -790,6 +791,146 @@ typedef struct {
 - 最低工作电压：10V（`MINVOLT`）
 - 满电电压：12.4V（`MAXVOLT`）
 - 上电最低电压：11.4V（`VOLTPOWERON`）
+
+## 如何添加新动作
+
+添加新动作需要修改 **4 个文件**，以下以添加一个站姿"挥手"动作为例。
+
+### 步骤 1：定义角度数据 — `Users/Action_Library.c`
+
+在对应姿态区域添加步进数组，每帧 14 个舵机的目标角度：
+
+```c
+// 挥手（站姿）
+static const ServoActionStep _Stand_WaveActions[] = {
+    { .servoAngles = {0, -1128, -1412, -626, 10, -153, 483, 831, 553, -7, 155, -1009, 175, 0 }},  // 起始站姿
+    { .servoAngles = {0, -1128, -1412, -626, 10, -153, 483, 831, 553, -7, 155, -1009, 100, 0 }},  // 手抬起
+    { .servoAngles = {0, -1128, -1412, -626, 10, -153, 483, 831, 553, -7, 155, -1009, -50, 0 }},  // 手左摆
+    { .servoAngles = {0, -1128, -1412, -626, 10, -153, 483, 831, 553, -7, 155, -1009, 200, 0 }},  // 手右摆
+    { .servoAngles = {0, -1128, -1412, -626, 10, -153, 483, 831, 553, -7, 155, -1009, -50, 0 }},  // 手左摆
+    { .servoAngles = {0, -1128, -1412, -626, 10, -153, 483, 831, 553, -7, 155, -1009, 200, 0 }},  // 手右摆
+    { .servoAngles = {0, -1128, -1412, -626, 10, -153, 483, 831, 553, -7, 155, -1009, 175, 0 }},  // 回到站姿
+};
+
+Motion_t Motion_Stand_Wave = {
+    .posestart = POSE_STANDING,
+    .poseend = POSE_STANDING,
+    .point_total = 1,
+    .point_iter = 0,
+    .motion = {
+        {.actionId = 20, .actions = _Stand_WaveActions, .emotionType = EMOTION_HAPPY,
+         .total_step = sizeof(_Stand_WaveActions)/sizeof(_Stand_WaveActions[0]),
+         .totalDuration = 1200, .ifNeedBezier = 0}}
+};
+```
+
+**关键字段说明**：
+
+| 字段 | 含义 | 说明 |
+|------|------|------|
+| `posestart` / `poseend` | 起/止姿态 | `POSE_SITTING`/`POSE_LYING`/`POSE_STANDING` |
+| `point_total` | 动作序列数 | 通常为 1，复杂动作可组合多个序列（最多 5） |
+| `point_iter` | 运行时迭代器 | 初始化为 0 |
+| `actionId` | 序列唯一标识 | 必须全局唯一，用于 `Action_done[actionId]` |
+| `total_step` | 步数 | 数组长度，用 `sizeof` 自动计算 |
+| `totalDuration` | 总时长(ms) | 7步 × 170ms ≈ 1200ms |
+| `ifNeedBezier` | 贝塞尔插值 | 0=逐帧切换，1=贝塞尔平滑 |
+| `emotionType` | 情绪标签 | `EMOTION_NEUTRAL`/`EMOTION_HAPPY` 等 |
+
+**如何获取角度值？** 两种方式：
+
+1. **示教模式**：手动摆姿势，系统自动采集并打印 C 数组格式，直接粘贴到代码中
+2. **手动调试**：用上位机 func=0x03 逐个控制关节到目标位置，记录各舵机角度
+
+### 步骤 2：添加枚举值 — `Users/user_tasks.h`
+
+在对应姿态分组的枚举中添加：
+
+```c
+typedef enum {
+    // ===== 站立姿态动作 =====
+    // ...
+    ACTION_STAND_PRAY,      // 9  拜一拜
+    ACTION_STAND_WAVE,      // 10 挥手  ← 新增
+
+    // ===== 坐姿态动作 =====
+    // ...
+} ACTION_STATE;
+```
+
+> 注意：枚举值是上位机通过 func=0x02 下发的 action_id，新增后上位机需要同步更新。
+
+### 步骤 3：添加查表映射 — `Users/user_tasks.c`
+
+在 `getMotionForAction()` 函数中添加 case：
+
+```c
+case ACTION_STAND_WAVE:
+    *poseNext = POSE_STANDING;
+    return (Motion_t *)&Motion_Stand_Wave;
+```
+
+### 步骤 4：声明外部变量 — `Users/Action_Library.h`
+
+在对应姿态区域添加 extern 声明：
+
+```c
+// ============ 站立姿态动作 ============
+extern Motion_t Motion_Stand_Bow;
+// ...
+extern Motion_t Motion_Stand_Wave;   // ← 新增
+```
+
+### 修改文件清单
+
+```
+Action_Library.c  →  定义角度数据 + Motion_t 变量
+Action_Library.h  →  extern 声明 Motion_t 变量
+user_tasks.h      →  ACTION_STATE 枚举添加新值
+user_tasks.c      →  getMotionForAction() 添加映射
+```
+
+### 坐姿/趴姿动作
+
+如果要加坐姿或趴姿动作，只需改三处：
+
+| 项目 | 站姿 | 坐姿 | 趴姿 |
+|------|------|------|------|
+| `posestart`/`poseend` | `POSE_STANDING` | `POSE_SITTING` | `POSE_LYING` |
+| 枚举位置 | `ACTION_STAND_*` | `ACTION_SIT_*` | `ACTION_LIE_*` |
+| 查表位置 | `case ACTION_STAND_*:` | `case ACTION_SIT_*:` | `case ACTION_LIE_*:` |
+
+### actionId 分配规则
+
+每个 `ServoActionSeries` 的 `actionId` 必须**全局唯一**，用于完成标志 `Action_done[actionId]`：
+
+| 姿态 | actionId 范围 |
+|------|-------------|
+| 初始化 | 1-9 |
+| 站立动作 | 10-29 |
+| 坐姿动作 | 30-49 |
+| 趴姿动作 | 50-69 |
+| 姿态切换 | 70-89 |
+
+### 复合动作（多序列组合）
+
+一个 `Motion_t` 可组合最多 5 个 `ServoActionSeries`，实现"先切换姿态，再执行动作，再恢复"的复合动作：
+
+```c
+Motion_t Motion_Sit_WaveAndReturn = {
+    .posestart = POSE_SITTING,
+    .poseend = POSE_SITTING,
+    .point_total = 3,
+    .point_iter = 0,
+    .motion = {
+        {.actionId = 31, .actions = _SitToWavePrepare, ...},  // 序列1: 准备姿态
+        {.actionId = 32, .actions = _Sit_WaveActions, ...},   // 序列2: 挥手
+        {.actionId = 33, .actions = _SitToWaveReturn, ...},   // 序列3: 恢复姿态
+    }
+};
+```
+
+执行时 `Motion_Run()` 会按 `point_iter` 依次执行每个序列，全部完成后才触发完成回调。
 
 ## 构建方法
 
