@@ -44,12 +44,13 @@
 #define LYING_RANGE_MAX 48
 
 // ============ 改进：舵机角度阈值（用于区分坐/站） ============
-// 通过膝关节角度区分：
-//   站态时膝盖接近直立（servo[3] ≈ -626, servo[9] ≈ -7）
-//   坐态时膝盖大角度弯曲（servo[3] ≈ -714, servo[9] ≈ -1017）
-#define KNEE_ANGLE_THRESHOLD -500    // 膝盖角度阈值，小于此值认为是坐姿
-#define KNEE_SERVO_ID_LEFT 3         // 左腿膝盖舵机 ID
-#define KNEE_SERVO_ID_RIGHT 9        // 右腿膝盖舵机 ID
+// 舵机映射: 4,5=左腿  9,10=右腿
+// 站态: servo[4]≈10,   servo[9]≈-7    (膝盖接近直立)
+// 坐态: servo[4]≈1003, servo[9]≈-1017  (膝盖大角度弯曲)
+#define KNEE_SERVO_ID_LEFT  4    // 左腿膝盖舵机 ID
+#define KNEE_SERVO_ID_RIGHT 9    // 右腿膝盖舵机 ID
+#define KNEE_LEFT_THRESHOLD   500   // 左膝盖: 大于此值=坐姿
+#define KNEE_RIGHT_THRESHOLD -500   // 右膝盖: 小于此值=坐姿
 
 // MPU6050 structure
 typedef struct

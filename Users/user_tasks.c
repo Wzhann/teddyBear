@@ -152,7 +152,8 @@ bool _SingleAction_CheckApproch(ServoActionSeries *action)
         }
     }	
 	
-	if(ActionNow != 999)
+//	if(ActionNow != 999walk)//除了爬行
+	if(1)
 	{
 //		if(step_counter<action->total_step-1)
 //		{
@@ -294,14 +295,13 @@ void Motion_Reset(Motion_t *motion_)
 	if(motion_ != NULL)
 		{
 			ActionNow = IDLE;
+			actionPoseLast = motion_->poseend; // 更新当前姿态为动作结束姿态
 		}
 		else
 		{
 			actionPoseLast = POSE_STANDING;
 		}
     motion_->point_iter = 0;         // 重置动作迭代器
-//    actionStandup_getStartAngle = 0; // 重置重新获取当前角度从而生成新的贝塞尔曲线逻辑
-//	actionPoseLast = motion_->poseend;
 //	speed = 2;
 		actionFromemotion = 0;
 	actionSwitchTime = ACTIONTIMESTEP;
@@ -326,8 +326,8 @@ void Motion_Reset_Bezier(Motion_t_ram *motion_)
 	}
 	motion_->point_iter = 0;         // 重置动作迭代器
     actionStandup_getStartAngle = 0; // 重置重新获取当前角度从而生成新的贝塞尔曲线逻辑
-//	actionPoseLast = motion_->poseend;
-//	ActionNow = IDLE; 
+	actionPoseLast = motion_->poseend; // 更新当前姿态为动作结束姿态
+	ActionNow = IDLE;
 }
 
 extern uint8_t flag_act;

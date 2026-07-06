@@ -906,11 +906,13 @@ void User_AllSetAngTime(void)
 	//	else if(goal_pos[12] > SEVRO12MAX) goal_pos[12] = SEVRO12MAX;
 	if (personTeachFlag != 1)
 	{
+	#if SERVO12_ENABLE
 		// 头部舵机 ID 12
 		tmp_pos[0] = 2048 + goal_pos[12];
 		tmp_ms[0] = goal_ms[12];
 		tmp_speed[0] = goal_speed[12];
 		FEETECH_HEADSYNCWRITE(tmp_pos, tmp_ms, tmp_speed); // 头部
+	#endif
 
 		// 脖子舵机 ID 11
 		tmp_pos[0] = 2048 + goal_pos[11];

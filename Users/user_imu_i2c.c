@@ -236,50 +236,26 @@ float startPose = 0;
 
 /**
  * @brief 通过舵机角度判断坐/站态
- * @param knee_angle_left 左腿膝盖角度（传入 0 则不使用）
- * @param knee_angle_right 右腿膝盖角度（传入 0 则不使用）
+ * @param knee_angle_left 左腿膝盖角度（servo 4，传入 0 则不使用）
+ * @param knee_angle_right 右腿膝盖角度（servo 9，传入 0 则不使用）
  * @return POSE_SITTING 或 POSE_STANDING
  *
- * @note 判断逻辑：
- *   - 站态时膝盖接近直立：角度接近 -600~-100
- *   - 坐态时膝盖大角度弯曲：角度接近 -1500~-500
- *   - 阈值设置为 -500，小于此值认为是坐姿
+ * @note 左右膝盖独立判断，任一判定坐姿即返回坐姿：
+ *   - 左膝盖(servo4): 站≈10,  坐≈1003  → >500  为坐姿
+ *   - 右膝盖(servo9): 站≈-7,  坐≈-1017 → <-500 为坐姿
  */
 uint8_t poseCheckByServoAngle(int16_t knee_angle_left, int16_t knee_angle_right)
 {
-    int16_t knee_angle = 0;
-    int valid_count = 0;
-
-    // 优先使用右腿膝盖角度
-    if (knee_angle_right != 0) {
-        knee_angle = knee_angle_right;
-        valid_count++;
-    }
-    // 使用左腿膝盖角度作为备份
-    if (knee_angle_left != 0) {
-        if (valid_count == 0) {
-            knee_angle = knee_angle_left;
-        } else {
-            // 取两个膝盖的平均值
-            knee_angle = (knee_angle + knee_angle_left) / 2;
-        }
-        valid_count++;
-    }
-
-    // 如果没有有效角度，默认为坐态
-    if (valid_count == 0) {
+    // 左膝盖: 坐姿时角度很大（正数）
+    if (knee_angle_left != 0 && knee_angle_left > KNEE_LEFT_THRESHOLD) {
         return POSE_SITTING;
     }
-
-    // 根据阈值判断
-    // KNEE_ANGLE_THRESHOLD = -500
-    // 站态: -600 ~ -100（大于阈值）
-    // 坐态: -1500 ~ -500（小于阈值）
-    if (knee_angle < KNEE_ANGLE_THRESHOLD) {
+    // 右膝盖: 坐姿时角度很大（负数）
+    if (knee_angle_right != 0 && knee_angle_right < KNEE_RIGHT_THRESHOLD) {
         return POSE_SITTING;
-    } else {
-        return POSE_STANDING;
     }
+    // 两个膝盖都不满足坐姿条件 → 站姿
+    return POSE_STANDING;
 }
 
 /**

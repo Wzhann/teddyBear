@@ -28,6 +28,19 @@
 #define serco12_max 560
 #define serco12_min 0
 
+// 舵机映射: 1,2,3=左胳膊  4,5=左腿  6,7,8=右胳膊  9,10=右腿  11=脖子  12=头部
+// 舵机12控制开关：1=控制, 0=不控制（方便调试）
+#define SERVO12_ENABLE 0
+
+// 舵机11(脖子)角度映射参数：将原始范围[-2048, -54]等比映射到[-125, 125]
+// 映射公式: mapped = ((old + 2048) * 250) / 1994 - 125
+#define SERVO11_OLD_MIN   -2048
+#define SERVO11_OLD_MAX   -54
+#define SERVO11_OLD_SPAN  1994   // old_max - old_min
+#define SERVO11_NEW_MIN   -125
+#define SERVO11_NEW_MAX   125
+#define SERVO11_NEW_SPAN  250    // new_max - new_min
+
 
 typedef struct
 {

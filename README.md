@@ -1,3 +1,5 @@
+/
+
 # PandaRobot 🐼
 
 基于 STM32H743 的双足熊猫机器人嵌入式固件，支持 14 舵机控制、预编排动作库、示教模式、IMU 姿态估计、上位机通信协议与 OTA 升级。
@@ -198,17 +200,17 @@ Motion_t（完整运动，如"鞠躬"）
 
 系统为动作数据提供了两套结构体，设计目的不同：
 
-| 特性 | Flash 版本 | RAM 版本 |
-|------|-----------|---------|
-| 结构体 | `ServoActionSeries` + `ServoActionStep` | `ServoActionSeries_ram` + `ServoActionStep_ram` |
-| 角度数据 | `const int16_t servoAngles[14]` | `int16_t servoAngles[14]`（可修改） |
-| 存储位置 | Flash，编译期固化 | RAM，运行时动态写入 |
-| 用途 | 预编排动作库（鞠躬、跳舞等） | 示教模式实时采集 |
-| 额外字段 | 无 | `startservoAngles[14]`、`endservoAngles[14]` |
-| 最大步数 | 按需定义 | `MAX_TOTAL_STEP = 80` |
-| 运行函数 | `Motion_Run()` | `Motion_Run_Bezier()` |
-| 到位判断 | `_SingleAction_CheckApproch()` | `_SingleAction_CheckApproch_Bezier()` |
-| 复位函数 | `Motion_Reset()` | `Motion_Reset_Bezier()` |
+| 特性     | Flash 版本                              | RAM 版本                                        |
+| -------- | --------------------------------------- | ----------------------------------------------- |
+| 结构体   | `ServoActionSeries` + `ServoActionStep` | `ServoActionSeries_ram` + `ServoActionStep_ram` |
+| 角度数据 | `const int16_t servoAngles[14]`         | `int16_t servoAngles[14]`（可修改）             |
+| 存储位置 | Flash，编译期固化                       | RAM，运行时动态写入                             |
+| 用途     | 预编排动作库（鞠躬、跳舞等）            | 示教模式实时采集                                |
+| 额外字段 | 无                                      | `startservoAngles[14]`、`endservoAngles[14]`    |
+| 最大步数 | 按需定义                                | `MAX_TOTAL_STEP = 80`                           |
+| 运行函数 | `Motion_Run()`                          | `Motion_Run_Bezier()`                           |
+| 到位判断 | `_SingleAction_CheckApproch()`          | `_SingleAction_CheckApproch_Bezier()`           |
+| 复位函数 | `Motion_Reset()`                        | `Motion_Reset_Bezier()`                         |
 
 **动作状态枚举 `ACTION_STATE`**（定义在 `user_tasks.h`）：
 
@@ -381,6 +383,7 @@ goal_pos[]    →A+3 →A+6 ... →A     →B+3 →B+6 ...→B    ... 完成!
 **`_SingleAction_CheckApproch_Bezier()` — RAM/示教版本**：
 
 逻辑与 Flash 版本基本一致，区别在于：
+
 - 操作 `ServoActionSeries_ram` 类型（非 const）
 - 不计算差值和自适应步进时间
 - 专用于示教模式的 RAM 动作数据回放
@@ -419,11 +422,11 @@ void Motion_Reset(Motion_t *motion_) {
 
 机器人有三种基本姿态，每种姿态对应一组初始化动作：
 
-| 姿态 | 常量 | 初始化动作 | 含义 |
-|------|------|-----------|------|
-| 坐 | `POSE_SITTING = 1` | `MsittingInit` | 臀部着地，腿部弯曲 |
-| 趴 | `POSE_LYING = 2` | `MlyingInit` | 四肢着地，身体水平 |
-| 站 | `POSE_STANDING = 3` | `MstandingInit` | 双腿直立 |
+| 姿态 | 常量                | 初始化动作      | 含义               |
+| ---- | ------------------- | --------------- | ------------------ |
+| 坐   | `POSE_SITTING = 1`  | `MsittingInit`  | 臀部着地，腿部弯曲 |
+| 趴   | `POSE_LYING = 2`    | `MlyingInit`    | 四肢着地，身体水平 |
+| 站   | `POSE_STANDING = 3` | `MstandingInit` | 双腿直立           |
 
 **姿态切换函数 `switchPose()`**：
 
@@ -462,13 +465,13 @@ void switchPose(uint8_t lastPose, uint8_t nowPose) {
 
 **action_id 处理逻辑**（`user_communication.c`）：
 
-| action_id | 行为 |
-|-----------|------|
-| 1 | 设置 `ActionNow = 1`（对应 `ACTION_STAND_BOW` 鞠躬） |
-| 253 | 进入展示模式，依次执行预设动作序列 |
-| 254 | 取消停止，恢复到 IDLE |
-| 255 | 紧急停止：复位所有标志，`ActionNow = IDLE` |
-| 其他 | `ActionNow = action_id`，执行对应编号的动作 |
+| action_id | 行为                                                |
+| --------- | --------------------------------------------------- |
+| 1         | 设置`ActionNow = 1`（对应 `ACTION_STAND_BOW` 鞠躬） |
+| 253       | 进入展示模式，依次执行预设动作序列                  |
+| 254       | 取消停止，恢复到 IDLE                               |
+| 255       | 紧急停止：复位所有标志，`ActionNow = IDLE`          |
+| 其他      | `ActionNow = action_id`，执行对应编号的动作         |
 
 **动作执行过程的状态应答**：
 
@@ -488,11 +491,11 @@ void switchPose(uint8_t lastPose, uint8_t nowPose) {
 
 **其他动作相关指令**：
 
-| 功能码 | 功能 | 数据格式 |
-|--------|------|----------|
-| 0x01 | 情绪状态触发 | `data[0]=状态, data[1]=程度` → 随机选择匹配动作 |
-| 0x03 | 关节直接控制 | `data[0]=0x01(头部), data[1~2]=水平角, data[3~4]=垂直角` |
-| 0x0A | 电源/复位 | `data[0]=PowerType_T`（含 ActionReset 复位动作系统） |
+| 功能码 | 功能         | 数据格式                                                 |
+| ------ | ------------ | -------------------------------------------------------- |
+| 0x01   | 情绪状态触发 | `data[0]=状态, data[1]=程度` → 随机选择匹配动作          |
+| 0x03   | 关节直接控制 | `data[0]=0x01(头部), data[1~2]=水平角, data[3~4]=垂直角` |
+| 0x0A   | 电源/复位    | `data[0]=PowerType_T`（含 ActionReset 复位动作系统）     |
 
 ### 示教模式
 
@@ -500,19 +503,19 @@ void switchPose(uint8_t lastPose, uint8_t nowPose) {
 
 **涉及的文件与变量**：
 
-| 变量/函数 | 文件 | 作用 |
-|-----------|------|------|
-| `TEACHMODE` | `Action_Library.c` | 示教模式标志（0=正常, 1=示教中） |
-| `TEACH_OK` | `Action_Library.c` | 示教采集开始标志 |
-| `TEACH_FINISH` | `Action_Library.c` | 示教采集结束标志 |
-| `TEACH_TOTAL_STEP` | `Action_Library.c` | 示教总步数，默认 30（对应 6 秒） |
-| `_Action_TEACH` | `Action_Library.c` | RAM 版 Motion_t，存储示教采集的角度数据 |
-| `personTeachFlag` | `user_tasks.c` | 人体感应触发示教标志 |
-| `T_COUNTER` | `user_timer.c` | 示教定时计数器 |
-| `step_record` | `user_timer.c` | 记录示教开始的时刻 |
-| `User_TimerTeachIRQ()` | `user_timer.c` | 示教定时器中断，200ms 周期 |
-| `TeachmodeRUN()` | `user_tasks.c` | TaskMid 中检测示教结束并触发回放 |
-| `Action_Teachmode()` | `Action_Library.c` | 示教结束后打印角度数据（调试用） |
+| 变量/函数              | 文件               | 作用                                    |
+| ---------------------- | ------------------ | --------------------------------------- |
+| `TEACHMODE`            | `Action_Library.c` | 示教模式标志（0=正常, 1=示教中）        |
+| `TEACH_OK`             | `Action_Library.c` | 示教采集开始标志                        |
+| `TEACH_FINISH`         | `Action_Library.c` | 示教采集结束标志                        |
+| `TEACH_TOTAL_STEP`     | `Action_Library.c` | 示教总步数，默认 30（对应 6 秒）        |
+| `_Action_TEACH`        | `Action_Library.c` | RAM 版 Motion_t，存储示教采集的角度数据 |
+| `personTeachFlag`      | `user_tasks.c`     | 人体感应触发示教标志                    |
+| `T_COUNTER`            | `user_timer.c`     | 示教定时计数器                          |
+| `step_record`          | `user_timer.c`     | 记录示教开始的时刻                      |
+| `User_TimerTeachIRQ()` | `user_timer.c`     | 示教定时器中断，200ms 周期              |
+| `TeachmodeRUN()`       | `user_tasks.c`     | TaskMid 中检测示教结束并触发回放        |
+| `Action_Teachmode()`   | `Action_Library.c` | 示教结束后打印角度数据（调试用）        |
 
 **示教模式完整流程**：
 
@@ -594,12 +597,12 @@ Motion_t_ram _Action_TEACH = {
 
 **示教时间参数**：
 
-| 参数 | 值 | 含义 |
-|------|-----|------|
-| TIM6 周期 | 200ms | 每次采样的间隔 |
-| `TEACH_TOTAL_STEP` | 30（默认） | 总采样步数 |
-| 示教总时长 | 6 秒 | 30 × 200ms |
-| `MAX_TOTAL_STEP` | 80 | 单序列最大步数 |
+| 参数               | 值         | 含义           |
+| ------------------ | ---------- | -------------- |
+| TIM6 周期          | 200ms      | 每次采样的间隔 |
+| `TEACH_TOTAL_STEP` | 30（默认） | 总采样步数     |
+| 示教总时长         | 6 秒       | 30 × 200ms     |
+| `MAX_TOTAL_STEP`   | 80         | 单序列最大步数 |
 
 **从示教到固化动作库**：
 
@@ -661,12 +664,20 @@ Motion_t Motion_Stand_Bow = {
 
 14 个 FEETECH 总线舵机通过 4 路 UART 分组控制：
 
-| UART   | 外设 | 舵机 ID | 部位          |
-| ------ | ---- | ------- | ------------- |
-| USART1 | 左腿 | 1-5     | 左腿各关节    |
-| USART2 | 右腿 | 1-5     | 右腿各关节    |
-| UART5  | 颈部 | 1-5     | 身体/颈部关节 |
-| UART7  | 头部 | 1-5     | 头部/手部关节 |
+| UART   | 通道 | 逻辑舵机      | 部位                     |
+| ------ | ---- | ------------- | ------------------------ |
+| USART1 | 左   | 1,2,3,4,5     | 1-3=左胳膊, 4-5=左腿     |
+| USART2 | 右   | 6,7,8,9,10    | 6-8=右胳膊, 9-10=右腿    |
+| UART5  | 脖子 | 11            | 脖子（已映射到 [-125,125]） |
+| UART7  | 头部 | 12            | 头部（可开关）           |
+
+**舵机12控制开关**（`user_servo.h`）：
+```c
+#define SERVO12_ENABLE 0   // 0=不控, 1=控制
+```
+
+**舵机11角度映射**（`user_servo.c`）：
+动作库中舵机11原始范围 [-1560, -441] 已等比映射到 [-125, 125]，左看为负、右看为正。
 
 **舵机控制周期**（TIM4，1ms 基准）：
 
@@ -710,17 +721,17 @@ Motion_t Motion_Stand_Bow = {
 
 **命令功能码一览**：
 
-| 功能码 | 功能 | 数据格式 |
-|--------|------|----------|
-| 0x01 | 情绪状态触发 | `data[0]=状态, data[1]=程度` |
-| 0x02 | 动作控制 | `data[0~1]=action_id (uint16_t)` |
-| 0x03 | 关节直接控制 | `data[0]=0x01(头部), data[1~2]=水平角, data[3~4]=垂直角` |
-| 0x04 | 传感器数据查询 | 无数据，返回 JSON |
-| 0x05 | 工作状态查询 | 无数据，返回 JSON |
-| 0x06 | 综合状态查询 | 无数据 |
-| 0x07 | 固件版本查询 | 无数据，返回 `{"V":"3.12.2"}` |
-| 0x08 | IAP 升级重启 | 触发跳转到 BootLoader |
-| 0x0A | 电源控制 | `data[0]=PowerType_T` |
+| 功能码 | 功能           | 数据格式                                                 |
+| ------ | -------------- | -------------------------------------------------------- |
+| 0x01   | 情绪状态触发   | `data[0]=状态, data[1]=程度`                             |
+| 0x02   | 动作控制       | `data[0~1]=action_id (uint16_t)`                         |
+| 0x03   | 关节直接控制   | `data[0]=0x01(头部), data[1~2]=水平角, data[3~4]=垂直角` |
+| 0x04   | 传感器数据查询 | 无数据，返回 JSON                                        |
+| 0x05   | 工作状态查询   | 无数据，返回 JSON                                        |
+| 0x06   | 综合状态查询   | 无数据                                                   |
+| 0x07   | 固件版本查询   | 无数据，返回`{"V":"3.12.2"}`                             |
+| 0x08   | IAP 升级重启   | 触发跳转到 BootLoader                                    |
+| 0x0A   | 电源控制       | `data[0]=PowerType_T`                                    |
 
 ### IMU 姿态估计
 
@@ -737,10 +748,27 @@ typedef struct {
 } MPU6050_t;
 ```
 
-**姿态判断逻辑** `poseCheck()`：
+**上电姿态检测** `poseCheckComprehensive()`：
 
-- 俯仰角 48°~120° → 站立/坐（`UPRIGHT_RANGE`）
+IMU 和舵机角度联合判断，两步到位：
+1. IMU roll 角判断趴姿：-40°~48° = 趴，48°~120° = 直立
+2. 直立时用膝关节角度区分坐/站（左右膝盖独立判断，任一判定即生效）：
+
+| 舵机 | 部位 | 站姿参考值 | 坐姿参考值 | 判断逻辑 |
+|------|------|-----------|-----------|---------|
+| servo[4] | 左膝盖 | ≈10 | ≈1003 | >500 = 坐姿 |
+| servo[9] | 右膝盖 | ≈-7 | ≈-1017 | <-500 = 坐姿 |
+
+```c
+if (knee_left > 500)   return POSE_SITTING;
+if (knee_right < -500) return POSE_SITTING;
+return POSE_STANDING;  // 都不满足 → 站姿
+```
+
+**运行时姿态检测** `poseCheck()`：
+- 俯仰角 48°~120° → 站立/坐（根据 `motion_last->poseend` 推断）
 - 俯仰角 -40°~48° → 趴（`LYING_RANGE`）
+- 每次动作完成后 `Motion_Reset()` 会更新 `actionPoseLast = motion_->poseend`
 
 ### IAP 固件升级
 
@@ -759,13 +787,13 @@ Flash 布局:
 
 ### 定时器系统
 
-| 定时器 | 周期  | 用途                             |
-| ------ | ----- | -------------------------------- |
+| 定时器 | 周期  | 用途                              |
+| ------ | ----- | --------------------------------- |
 | TIM4   | 1ms   | 舵机控制调度（7ms一轮）+ 角度插补 |
 | TIM6   | 200ms | 示教模式角度采集                  |
-| TIM3   | —     | 辅助定时                         |
-| TIM7   | —     | HAL 时基                         |
-| TIM17  | —     | 辅助                             |
+| TIM3   | —     | 辅助定时                          |
+| TIM7   | —     | HAL 时基                          |
+| TIM17  | —     | 辅助                              |
 
 ### Flash 存储
 
@@ -826,16 +854,16 @@ Motion_t Motion_Stand_Wave = {
 
 **关键字段说明**：
 
-| 字段 | 含义 | 说明 |
-|------|------|------|
-| `posestart` / `poseend` | 起/止姿态 | `POSE_SITTING`/`POSE_LYING`/`POSE_STANDING` |
-| `point_total` | 动作序列数 | 通常为 1，复杂动作可组合多个序列（最多 5） |
-| `point_iter` | 运行时迭代器 | 初始化为 0 |
-| `actionId` | 序列唯一标识 | 必须全局唯一，用于 `Action_done[actionId]` |
-| `total_step` | 步数 | 数组长度，用 `sizeof` 自动计算 |
-| `totalDuration` | 总时长(ms) | 7步 × 170ms ≈ 1200ms |
-| `ifNeedBezier` | 贝塞尔插值 | 0=逐帧切换，1=贝塞尔平滑 |
-| `emotionType` | 情绪标签 | `EMOTION_NEUTRAL`/`EMOTION_HAPPY` 等 |
+| 字段                    | 含义         | 说明                                        |
+| ----------------------- | ------------ | ------------------------------------------- |
+| `posestart` / `poseend` | 起/止姿态    | `POSE_SITTING`/`POSE_LYING`/`POSE_STANDING` |
+| `point_total`           | 动作序列数   | 通常为 1，复杂动作可组合多个序列（最多 5）  |
+| `point_iter`            | 运行时迭代器 | 初始化为 0                                  |
+| `actionId`              | 序列唯一标识 | 必须全局唯一，用于`Action_done[actionId]`   |
+| `total_step`            | 步数         | 数组长度，用`sizeof` 自动计算               |
+| `totalDuration`         | 总时长(ms)   | 7步 × 170ms ≈ 1200ms                        |
+| `ifNeedBezier`          | 贝塞尔插值   | 0=逐帧切换，1=贝塞尔平滑                    |
+| `emotionType`           | 情绪标签     | `EMOTION_NEUTRAL`/`EMOTION_HAPPY` 等        |
 
 **如何获取角度值？** 两种方式：
 
@@ -894,23 +922,23 @@ user_tasks.c      →  getMotionForAction() 添加映射
 
 如果要加坐姿或趴姿动作，只需改三处：
 
-| 项目 | 站姿 | 坐姿 | 趴姿 |
-|------|------|------|------|
-| `posestart`/`poseend` | `POSE_STANDING` | `POSE_SITTING` | `POSE_LYING` |
-| 枚举位置 | `ACTION_STAND_*` | `ACTION_SIT_*` | `ACTION_LIE_*` |
-| 查表位置 | `case ACTION_STAND_*:` | `case ACTION_SIT_*:` | `case ACTION_LIE_*:` |
+| 项目                  | 站姿                   | 坐姿                 | 趴姿                 |
+| --------------------- | ---------------------- | -------------------- | -------------------- |
+| `posestart`/`poseend` | `POSE_STANDING`        | `POSE_SITTING`       | `POSE_LYING`         |
+| 枚举位置              | `ACTION_STAND_*`       | `ACTION_SIT_*`       | `ACTION_LIE_*`       |
+| 查表位置              | `case ACTION_STAND_*:` | `case ACTION_SIT_*:` | `case ACTION_LIE_*:` |
 
 ### actionId 分配规则
 
 每个 `ServoActionSeries` 的 `actionId` 必须**全局唯一**，用于完成标志 `Action_done[actionId]`：
 
-| 姿态 | actionId 范围 |
-|------|-------------|
-| 初始化 | 1-9 |
-| 站立动作 | 10-29 |
-| 坐姿动作 | 30-49 |
-| 趴姿动作 | 50-69 |
-| 姿态切换 | 70-89 |
+| 姿态     | actionId 范围 |
+| -------- | ------------- |
+| 初始化   | 1-9           |
+| 站立动作 | 10-29         |
+| 坐姿动作 | 30-49         |
+| 趴姿动作 | 50-69         |
+| 姿态切换 | 70-89         |
 
 ### 复合动作（多序列组合）
 
