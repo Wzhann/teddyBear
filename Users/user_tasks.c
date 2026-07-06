@@ -71,12 +71,23 @@ void User_Init_HIGH(void)
 	User_AdcInit();
     Action_init();         // 动作库初始化（加载舵机消息）
     
+	osDelay(1000);//等待舵机稳定
+	
 	for(uint8_t i = 1;i <= 12;i++)
 	{
-		osDelay(10);
+		osDelay(20);
 		sevroSetMode(i,0);
 	}
 	
+	sevroSetMode(1,0);
+	sevroSetMode(2,0);
+	sevroSetMode(3,0);
+	
+	sevroSetMode(6,0);
+	sevroSetMode(7,0);
+	sevroSetMode(8,0);
+	
+		
 	osDelay(100);
 	ds18b20_init();
 	osDelay(100);
@@ -337,7 +348,7 @@ bool Motion_Run(Motion_t *motion_)
 	if(step_counter == 1 && releaseSevroFlag == 0) releaseSevroFlag = 1;
 	if(releaseSevroFlag == 1)
 	{
-		osDelay(10);
+		osDelay(15);
 		sevroSetMode(1,0);
 		sevroSetMode(2,0);
 		sevroSetMode(3,0);
@@ -364,6 +375,7 @@ bool Motion_Run(Motion_t *motion_)
     motion_last = motion_;
     if (ifStartAct == 0)
     {
+        step_counter = 1;  // 确保每次新动作从头开始
         for (int i = 1; i <= 12; i++)
         {
             goal_pos[i] = motion_->motion[0].actions[1].servoAngles[i];
@@ -395,7 +407,7 @@ bool Motion_Run_Bezier(Motion_t_ram *motion_)
 	if(step_counter == 1 && releaseSevroFlag == 0) releaseSevroFlag = 1;
 	if(releaseSevroFlag == 1)
 	{
-		osDelay(10);
+		osDelay(15);
 		sevroSetMode(1,0);
 		sevroSetMode(2,0);
 		sevroSetMode(3,0);
@@ -422,6 +434,7 @@ bool Motion_Run_Bezier(Motion_t_ram *motion_)
 	}
     if (ifStartAct == 0)
     {
+        step_counter = 1;  // 确保每次新动作从头开始
         for (int i = 1; i <= 12; i++)
         {
             goal_pos[i] = _Action_TEACH.motion[0].actions[1].servoAngles[i];
@@ -635,7 +648,33 @@ void robotRun()
     // 获取当前动作对应的 Motion_t 指针
     Motion_t *motion = getMotionForAction(ActionNow, &actionPoseNext);
     if (motion == NULL)
+    {
+        // 防止动作中途切换：如果 step_counter 没复位，强制复位上一个动作
+        if (step_counter != 1)
+        {
+            Motion_Reset(motion_last);
+            Motion_Reset_Bezier(motion_ram_last);
+        }
+        ifStartAct = 0;
+        flag_sendCompleted = 0;
+        flag_sendExecuting = 0;
+        sendmodework = 0;
+        actionPoseLast = poseCheck();
+
+        // IDLE 状态下释放胳膊舵机（趴姿需要撑地，不释放）
+        if (releaseSevroFlag == 0 && actionPoseLast != POSE_LYING)
+        {
+            releaseSevroFlag = 1;
+            osDelay(15);
+            sevroSetMode(1, 2);
+            sevroSetMode(2, 2);
+            sevroSetMode(3, 2);
+            sevroSetMode(6, 2);
+            sevroSetMode(7, 2);
+            sevroSetMode(8, 2);
+        }
         return;
+    }
 
     // ===== DEBUG: 注释姿态检测，直接执行动作 =====
 //    // 检查是否需要姿态切换

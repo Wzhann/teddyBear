@@ -69,6 +69,7 @@ typedef struct
 
 extern SERVO_INFO_TYPEDEF SERVO[14];
 extern int16_t servo_pos[14];	// 舵机角度值镜像数组，方便watch窗口查看
+extern uint8_t servo_mode[15];	// 舵机当前模式镜像数组，方便watch窗口查看 (索引1-12)
 
 extern uint8_t SERVO_COMM_BUSY;
 
@@ -98,6 +99,11 @@ void FEETECH_UsartSetServo(uint8_t servo_id, uint8_t address,uint8_t len,int val
 void User_BezierCurve(int stepping, ServoActionSeries_ram* Action_analyze);
 void sevroSetZero(void);
 void hand_angle(int angle_11,int angle_12);
+
+// 读取舵机当前模式 (RUNMODE寄存器 0x21)，结果存入 servo_mode[id]
+void FEETECH_ReadServoMode(uint8_t servo_id);
+// 解析模式读取的返回数据，应在 UART IDLE 中断中调用
+void FEETECH_ParseServoMode(USART_SERVO_TYPEDEF *p_usart_servo_x);
 
 #endif
 

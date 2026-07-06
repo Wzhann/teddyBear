@@ -15,6 +15,7 @@ USART_SERVO_TYPEDEF USART_NECK = {0};	   // 脖子 ID:11
 
 SERVO_INFO_TYPEDEF SERVO[14] = {0};
 int16_t servo_pos[14] = {0};	// 舵机角度值镜像数组，方便watch窗口查看
+uint8_t servo_mode[15] = {0};	// 舵机当前模式镜像数组 (索引1-12: 0=位置,2=零力矩)
 
 uint8_t SERVO_COMM_BUSY = 0;
 extern int16_t ang_goal[15];
@@ -91,8 +92,8 @@ void User_ServoLegRIGHT_IRQHandler(void)
 	if (RESET != __HAL_UART_GET_FLAG(USART_RIGHT_LEG.p_usart_n, UART_FLAG_IDLE)) // 检查UART的空闲中断标志位是否被置位
 	{
 		__HAL_UART_CLEAR_IDLEFLAG(USART_RIGHT_LEG.p_usart_n);														   // 清除中断标志位，防止重复触发中断
-		HAL_UART_DMAStop(USART_RIGHT_LEG.p_usart_n);																   // 终止当前DMA传输，确保后续操作（如计算数据长度）的准确性
 		USART_RIGHT_LEG.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_RIGHT_LEG.p_hdma_usart_n_rx);  // 计算实际接收长度
+			HAL_UART_AbortReceive(USART_RIGHT_LEG.p_usart_n);																		   // 只停RX DMA，不动TX
 		User_UsartServoDataParas(&USART_RIGHT_LEG);																	   // 解析数据
 		HAL_UART_Receive_DMA(USART_RIGHT_LEG.p_usart_n, (uint8_t *)USART_RIGHT_LEG.usart_rx_buf, USART_SERVO_RX_SIZE); // 重启DMA接收
 	}
@@ -102,8 +103,8 @@ void User_ServoLegLEFT_IRQHandler(void)
 	if (RESET != __HAL_UART_GET_FLAG(USART_LEFT_LEG.p_usart_n, UART_FLAG_IDLE)) // 检查UART的空闲中断标志位是否被置位
 	{
 		__HAL_UART_CLEAR_IDLEFLAG(USART_LEFT_LEG.p_usart_n);														 // 清除中断标志位，防止重复触发中断
-		HAL_UART_DMAStop(USART_LEFT_LEG.p_usart_n);																	 // 终止当前DMA传输，确保后续操作（如计算数据长度）的准确性
 		USART_LEFT_LEG.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_LEFT_LEG.p_hdma_usart_n_rx);	 // 计算实际接收长度
+			HAL_UART_AbortReceive(USART_LEFT_LEG.p_usart_n);																		   // 只停RX DMA，不动TX
 		User_UsartServoDataParas(&USART_LEFT_LEG);																	 // 解析数据
 		HAL_UART_Receive_DMA(USART_LEFT_LEG.p_usart_n, (uint8_t *)USART_LEFT_LEG.usart_rx_buf, USART_SERVO_RX_SIZE); // 重启DMA接收
 	}
@@ -113,8 +114,8 @@ void User_ServoHead_IRQHandler(void)
 	if (RESET != __HAL_UART_GET_FLAG(USART_HEAD.p_usart_n, UART_FLAG_IDLE)) // 检查UART的空闲中断标志位是否被置位
 	{
 		__HAL_UART_CLEAR_IDLEFLAG(USART_HEAD.p_usart_n);													 // 清除中断标志位
-		HAL_UART_DMAStop(USART_HEAD.p_usart_n);																 // 终止当前DMA传输，确保后续操作（如计算数据长度）的准确性
 		USART_HEAD.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_HEAD.p_hdma_usart_n_rx);	 // 计算实际接收长度
+			HAL_UART_AbortReceive(USART_HEAD.p_usart_n);																		   // 只停RX DMA，不动TX
 		User_UsartServoDataParas(&USART_HEAD);																 // 解析数据
 		HAL_UART_Receive_DMA(USART_HEAD.p_usart_n, (uint8_t *)USART_HEAD.usart_rx_buf, USART_SERVO_RX_SIZE); // 重启DMA接收
 	}
@@ -124,8 +125,8 @@ void User_ServoNECK_IRQHandler(void)
 	if (RESET != __HAL_UART_GET_FLAG(USART_NECK.p_usart_n, UART_FLAG_IDLE)) // 检查UART的空闲中断标志位是否被置位
 	{
 		__HAL_UART_CLEAR_IDLEFLAG(USART_NECK.p_usart_n);													 // 清除中断标志位
-		HAL_UART_DMAStop(USART_NECK.p_usart_n);																 // 终止当前DMA传输，确保后续操作（如计算数据长度）的准确性
 		USART_NECK.rx_data_len = USART_SERVO_RX_SIZE - __HAL_DMA_GET_COUNTER(USART_NECK.p_hdma_usart_n_rx);	 // 计算实际接收长度
+			HAL_UART_AbortReceive(USART_NECK.p_usart_n);																		   // 只停RX DMA，不动TX
 		User_UsartServoDataParas(&USART_NECK);																 // 解析数据
 		HAL_UART_Receive_DMA(USART_NECK.p_usart_n, (uint8_t *)USART_NECK.usart_rx_buf, USART_SERVO_RX_SIZE); // 重启DMA接收
 	}
@@ -365,9 +366,9 @@ void FEETECH_UsartSetServo(uint8_t servo_id, uint8_t address, uint8_t len, int v
 void sevroSetMode(uint8_t id, uint8_t mode)
 {
 	FEETECH_UsartSetServo(id, 0x37, 1, 0);
-	osDelay(10);
+	osDelay(20);
 	FEETECH_UsartSetServo(id, RUNMODE, 1, mode);
-	osDelay(10);
+	osDelay(20);
 	//	if(mode == 2)
 	//	{
 	//		FEETECH_UsartSetServo(id,PWMTIME,2,0);
@@ -920,6 +921,98 @@ void User_AllSetAngTime(void)
 		tmp_speed[0] = goal_speed[11];
 		FEETECH_NECKSYNCWRITE(tmp_pos, tmp_ms, tmp_speed); // 脖子
 	}
+}
+
+// ============================================================
+// 读取舵机当前运行模式
+// ============================================================
+
+/**
+ * @brief 发送读取舵机模式指令 (RUNMODE寄存器 0x21)
+ * @param servo_id 舵机 ID (1-12)
+ * @note 读取结果在 UART IDLE 中断中由 FEETECH_ParseServoMode() 解析
+ *       解析后存入 servo_mode[servo_id]
+ *
+ * 发送帧: FF FF ID 04 02 21 01 ~SUM
+ * 响应帧: FF FF ID 02 Err Mode ~SUM
+ */
+void FEETECH_ReadServoMode(uint8_t servo_id)
+{
+    uint8_t i = 0;
+    uint8_t sum = 0;
+    USART_SERVO_TYPEDEF *p_usart_servo_x;
+
+    // 根据舵机ID选择对应的UART通道
+    switch (servo_id)
+    {
+    case 1: case 2: case 3:  p_usart_servo_x = &USART_LEG1;  break;
+    case 4: case 5:          p_usart_servo_x = &USART_LEG2;  break;
+    case 6: case 7: case 8:  p_usart_servo_x = &USART_LEG3;  break;
+    case 9: case 10:         p_usart_servo_x = &USART_LEG4;  break;
+    case 11:                 p_usart_servo_x = &USART_NECK;   break;
+    case 12:                 p_usart_servo_x = &USART_HEAD;   break;
+    default: return;
+    }
+
+    p_usart_servo_x->usart_tx_buf[0] = 0xFF;     // 帧头
+    p_usart_servo_x->usart_tx_buf[1] = 0xFF;     // 帧头
+    p_usart_servo_x->usart_tx_buf[2] = servo_id; // 舵机ID
+    p_usart_servo_x->usart_tx_buf[3] = 0x04;     // 数据包长度 (指令+地址+读取长度)
+    p_usart_servo_x->usart_tx_buf[4] = 0x02;     // 读指令
+    p_usart_servo_x->usart_tx_buf[5] = RUNMODE;  // 寄存器地址 0x21
+    p_usart_servo_x->usart_tx_buf[6] = 0x01;     // 读取1字节
+
+    sum = 0;
+    for (i = 2; i <= 6; i++)
+        sum += p_usart_servo_x->usart_tx_buf[i];
+    sum %= 256;
+    sum = ~sum;
+    p_usart_servo_x->usart_tx_buf[7] = sum; // 校验和
+
+    if (p_usart_servo_x->p_usart_n->gState == HAL_UART_STATE_READY)
+        HAL_UART_Transmit_DMA(p_usart_servo_x->p_usart_n, p_usart_servo_x->usart_tx_buf, 8);
+}
+
+/**
+ * @brief 解析舵机模式读取的返回数据
+ * @param p_usart_servo_x 舵机UART通道指针
+ * @note 在 UART IDLE 中断回调中调用（User_ServoLegxxx_IRQHandler / User_ServoHeadIRQHandler / User_ServoNECK_IRQHandler）
+ *
+ * 响应帧格式: FF FF ID 02 Err Mode ~SUM
+ *   - rx[0]=0xFF, rx[1]=0xFF: 帧头
+ *   - rx[2]: 舵机ID
+ *   - rx[3]=0x02: 数据长度 (Err+Mode)
+ *   - rx[4]: 错误码 (0=正常)
+ *   - rx[5]: 模式值 (0=位置, 1=速度, 2=零力矩/顺滑)
+ *   - rx[6]: 校验和
+ */
+void FEETECH_ParseServoMode(USART_SERVO_TYPEDEF *p_usart_servo_x)
+{
+    uint8_t i, sum = 0;
+    uint8_t data_len;
+
+    // 检查帧头
+    if (p_usart_servo_x->usart_rx_buf[0] != 0xFF || p_usart_servo_x->usart_rx_buf[1] != 0xFF)
+        return;
+
+    uint8_t servo_id = p_usart_servo_x->usart_rx_buf[2];
+    data_len = p_usart_servo_x->usart_rx_buf[3];
+
+    // 模式读取响应: 数据长度为2 (Err + Mode)
+    if (data_len != 2)
+        return;
+
+    // 校验和验证
+    for (i = 2; i < 3 + data_len + 1; i++)  // ID + Length + Err + Mode
+        sum += p_usart_servo_x->usart_rx_buf[i];
+    sum %= 256;
+    sum = ~sum;
+
+    if (p_usart_servo_x->usart_rx_buf[6] != (uint8_t)sum)
+        return; // 校验失败
+
+    // 提取模式值
+    servo_mode[servo_id] = p_usart_servo_x->usart_rx_buf[5];
 }
 
 int16_t servo11_angle, servo12_angle;

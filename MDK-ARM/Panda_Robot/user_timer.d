@@ -55,9 +55,9 @@ panda_robot/user_timer.o: ..\Users\user_timer.c ..\Users\user_timer.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\semphr.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\event_groups.h \
   ..\Core\Inc\main.h ..\Users\user_tasks.h \
-  D:\Dkong\ARM\ARMCLANG\Bin\..\include\time.h ..\Users\user_led.h \
-  ..\Users\user_adc.h ..\Users\user_imu.h ..\Users\user_comm.h \
-  ..\Users\user_servo.h ..\Users\Action_Library.h ..\Users\user_gait.h \
+  D:\Dkong\ARM\ARMCLANG\Bin\..\include\time.h ..\Users\Action_Library.h \
+  ..\Users\user_led.h ..\Users\user_adc.h ..\Users\user_imu.h \
+  ..\Users\user_comm.h ..\Users\user_servo.h ..\Users\user_gait.h \
   ..\Users\user_communication.h \
   D:\Dkong\ARM\ARMCLANG\Bin\..\include\stdbool.h \
   D:\Dkong\ARM\ARMCLANG\Bin\..\include\stdio.h \
